@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>세계 기후 탐험 지도</title>
+
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root {
+      --bg:#f4f7fb; --panel:#ffffff; --text:#182230; --muted:#667085;
+      --line:#e4e7ec; --accent:#2563eb; --accent2:#0ea5e9;
+      --shadow:0 12px 35px rgba(16,24,40,.10);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;background:var(--bg);color:var(--text)}
+    .app{height:100vh;display:grid;grid-template-rows:auto 1fr;overflow:hidden}
+    header{background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);padding:14px 18px;display:flex;align-items:center;gap:14px;z-index:1000}
+    .brand{display:flex;align-items:center;gap:10px;min-width:230px}
+    .brand-icon{width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,#3b82f6,#22c55e);display:grid;place-items:center;font-size:22px;box-shadow:var(--shadow)}
+    .brand h1{font-size:19px;margin:0;line-height:1.2}
+    .brand p{font-size:12px;color:var(--muted);margin:3px 0 0}
+    .search-wrap{position:relative;flex:1;max-width:560px}
+    #search{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px 42px 12px 14px;font-size:15px;outline:none;background:#fff}
+    #search:focus{border-color:#93c5fd;box-shadow:0 0 0 4px rgba(59,130,246,.10)}
+    .search-icon{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#98a2b3}
+    .result-list{position:absolute;top:48px;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);max-height:320px;overflow:auto;display:none;z-index:3000}
+    .result-item{padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;border-bottom:1px solid #f2f4f7}
+    .result-item:last-child{border-bottom:0}
+    .result-item:hover{background:#f8fafc}
+    .result-main{font-weight:700;font-size:14px}
+    .result-sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .count-pill{margin-left:auto;background:#eef4ff;color:#1d4ed8;border:1px solid #dbeafe;padding:8px 11px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+
+    .main{display:grid;grid-template-columns:260px 1fr 470px;min-height:0}
+    .sidebar{background:#fff;border-right:1px solid var(--line);padding:16px;overflow:auto}
+    .sidebar h2{font-size:14px;margin:0 0 10px}
+    .filter-list{display:flex;flex-direction:column;gap:7px}
+    .filter-btn{border:1px solid transparent;background:#f8fafc;border-radius:12px;padding:10px 11px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#344054}
+    .filter-btn:hover{background:#f2f4f7}
+    .filter-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;font-weight:800}
+    .filter-left{display:flex;align-items:center;gap:8px}
+    .filter-count{font-size:11px;color:#667085;background:white;border:1px solid var(--line);padding:2px 6px;border-radius:999px}
+    .sidebar-note{font-size:11px;color:#667085;line-height:1.55;margin-top:16px;padding:12px;border-radius:12px;background:#fffbea;border:1px solid #fde68a}
+
+    #map{height:100%;width:100%;background:#dbeafe}
+    .leaflet-control-attribution{font-size:9px}
+
+    .detail{background:#fff;border-left:1px solid var(--line);overflow:auto;display:flex;flex-direction:column}
+    .empty{margin:auto;padding:30px;text-align:center;color:#667085}
+    .empty .globe{font-size:52px;margin-bottom:10px}
+    .detail-content{display:none;padding:18px}
+    .city-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+    .eyebrow{font-size:12px;color:#2563eb;font-weight:800;margin-bottom:4px}
+    .city-title{font-size:26px;font-weight:900;letter-spacing:-.02em;margin:0}
+    .country{font-size:14px;color:#667085;margin-top:3px}
+    .close-btn{display:none;border:0;background:#f2f4f7;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:18px}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
+    .stat{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:12px}
+    .stat-label{font-size:11px;color:#667085}
+    .stat-value{font-size:20px;font-weight:900;margin-top:4px}
+    .chart-card{border:1px solid var(--line);border-radius:16px;padding:12px;margin-top:6px}
+    .chart-wrap{height:270px}
+    .legend-note{font-size:11px;color:#667085;margin:8px 2px 0}
+    .month-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:11px}
+    .month-table th,.month-table td{border-bottom:1px solid #eef2f6;padding:7px 4px;text-align:center}
+    .month-table th{color:#667085;font-weight:700;background:#fafafa}
+    .source,.warn{margin-top:14px;padding:11px 12px;border-radius:12px;font-size:11px;line-height:1.55}
+    .source{background:#f8fafc;color:#667085;border:1px solid var(--line)}
+    .warn{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+
+    .marker-dot{width:18px;height:18px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.25)}
+    .marker-dot.selected{width:23px;height:23px;background:#ef4444}
+
+    .recommend-badge{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:5px 8px;border-radius:999px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:11px;font-weight:800}
+    .main-tabs,.sub-tabs{display:flex;gap:6px;flex-wrap:wrap}
+    .main-tabs{margin:16px 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+    .tab-btn{border:1px solid var(--line);background:#fff;color:#475467;border-radius:10px;padding:8px 11px;font-size:12px;font-weight:800;cursor:pointer}
+    .tab-btn:hover{background:#f8fafc}
+    .tab-btn.active{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+    .sub-tabs{margin:10px 0 14px}
+    .sub-tabs .tab-btn{padding:7px 10px;font-size:11px}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .info-card{border:1px solid var(--line);border-radius:15px;padding:14px;margin:10px 0;background:#fff}
+    .info-card h3{font-size:15px;margin:0 0 8px}
+    .info-card p{font-size:12px;line-height:1.7;margin:6px 0;color:#344054}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+    .chip{font-size:11px;font-weight:700;background:#f2f4f7;color:#344054;padding:6px 8px;border-radius:999px;border:1px solid #e4e7ec}
+    .think-box{margin-top:12px;border-radius:13px;padding:12px;background:#fffbea;border:1px solid #fde68a;color:#713f12;font-size:12px;line-height:1.6}
+    .think-box b{display:block;margin-bottom:4px}
+    .notice-box{border-radius:13px;padding:11px 12px;background:#f0f9ff;border:1px solid #bae6fd;color:#0c4a6e;font-size:11px;line-height:1.6;margin:10px 0}
+    .culture-note{border-radius:13px;padding:11px 12px;background:#faf5ff;border:1px solid #e9d5ff;color:#6b21a8;font-size:11px;line-height:1.6;margin:10px 0}
+    .festival-source{display:inline-block;margin-top:8px;font-size:11px;font-weight:800;color:#1d4ed8;text-decoration:none}
+    .festival-source:hover{text-decoration:underline}
+    .marker-dot.recommended{width:22px;height:22px;background:#f59e0b;color:white;display:grid;place-items:center;font-size:10px;font-weight:900}
+    .marker-dot.selected{outline:3px solid rgba(239,68,68,.3)}
+    .marker-dot.selected.recommended{background:#ef4444}
+    .result-star{color:#f59e0b;margin-right:3px}
+    .section-kicker{font-size:11px;color:#667085;font-weight:700;margin-bottom:4px}
+    .weather-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+    .weather-fact{border:1px solid var(--line);background:#f8fafc;border-radius:11px;padding:9px}
+    .weather-fact b{display:block;font-size:11px;color:#667085;margin-bottom:3px}
+    .weather-fact span{font-size:13px;font-weight:900;color:#182230}
+    .life-example{font-size:12px;line-height:1.7;color:#344054}
+    .plant-subtitle{font-size:12px;font-weight:900;color:#344054;margin:12px 0 4px}
+    .crop-link{margin-top:4px!important;padding:9px 10px;border-radius:11px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534!important}
+    .clothing-grid{display:grid;grid-template-columns:1fr;gap:9px;margin:8px 0}
+    .clothing-card{border:1px solid var(--line);border-radius:12px;padding:11px;background:#f8fafc}
+    .clothing-card.traditional{background:#fff7ed;border-color:#fed7aa}
+    .clothing-card.modern{background:#eff6ff;border-color:#bfdbfe}
+    .clothing-card b{display:block;font-size:12px;margin-bottom:5px;color:#182230}
+    .clothing-card p{margin:0!important}
+    .worksheet-strip{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 12px}
+    .worksheet-pill{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:999px;background:#f8fafc;border:1px solid var(--line);font-size:10px;font-weight:900;color:#475467}
+    .worksheet-pill strong{color:#1d4ed8}
+    .worksheet-box{margin:12px 0;border-radius:14px;padding:12px 13px;background:#f8fbff;border:1px solid #bfdbfe;color:#1e3a5f;font-size:12px;line-height:1.65}
+    .worksheet-box.green{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+    .worksheet-box.orange{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+    .worksheet-box.purple{background:#faf5ff;border-color:#e9d5ff;color:#6b21a8}
+    .worksheet-box b{display:block;margin-bottom:4px}
+    .evidence-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+    .evidence-card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px}
+    .evidence-card b{display:block;font-size:11px;color:#667085;margin-bottom:4px}
+    .evidence-card span{font-size:13px;font-weight:900;color:#182230;line-height:1.45}
+    .housing-grid{display:grid;grid-template-columns:1fr;gap:9px;margin:8px 0}
+    .housing-card{border:1px solid var(--line);border-radius:12px;padding:11px;background:#f8fafc}
+    .housing-card.traditional{background:#fff7ed;border-color:#fed7aa}
+    .housing-card.modern{background:#eff6ff;border-color:#bfdbfe}
+    .housing-card b{display:block;font-size:12px;margin-bottom:5px}
+    .housing-card p{margin:0!important}
+    .sight-list{display:grid;grid-template-columns:1fr;gap:9px;margin:9px 0}
+    .sight-card{border:1px solid var(--line);border-radius:12px;padding:11px;background:#fff}
+    .sight-card b{font-size:13px}
+    .sight-card p{margin:5px 0 0;font-size:11px;color:#667085;line-height:1.55}
+    .connect-grid{display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr;align-items:stretch;gap:6px;margin:10px 0}
+    .connect-card{border:1px solid var(--line);border-radius:13px;padding:11px;background:#fff;min-height:112px}
+    .connect-card:nth-child(1){background:#eff6ff;border-color:#bfdbfe}
+    .connect-card:nth-child(3){background:#faf5ff;border-color:#e9d5ff}
+    .connect-card:nth-child(5){background:#fff7ed;border-color:#fed7aa}
+    .connect-card b{display:block;font-size:12px;margin-bottom:6px}
+    .connect-card p{font-size:11px!important;margin:0!important;color:#475467!important;line-height:1.55!important}
+    .connect-arrow{display:grid;place-items:center;font-size:20px;font-weight:900;color:#7c3aed}
+    .sentence-frame{padding:12px;border-radius:13px;background:#f8fafc;border:1px dashed #94a3b8;font-size:12px;line-height:1.75;color:#334155}
+    .step-kicker{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:#dbeafe;color:#1e40af;font-size:10px;font-weight:900;margin-bottom:7px}
+    @media (max-width:520px){.evidence-grid{grid-template-columns:1fr}.connect-grid{grid-template-columns:1fr}.connect-arrow{transform:rotate(90deg);min-height:18px}}
+
+    @media (max-width: 1000px){
+      .main{grid-template-columns:220px 1fr}
+      .detail{position:fixed;right:12px;top:84px;bottom:12px;width:min(470px,calc(100vw - 24px));z-index:2500;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);display:none}
+      .detail.open{display:flex}
+      .close-btn{display:block}
+    }
+    @media (max-width: 720px){
+      header{padding:10px;gap:8px;flex-wrap:wrap}
+      .brand{min-width:auto;flex:1}
+      .brand p{display:none}
+      .search-wrap{order:3;max-width:none;width:100%}
+      .count-pill{font-size:11px;padding:7px 9px}
+      .main{grid-template-columns:1fr}
+      .sidebar{display:none}
+      .detail{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:76vh;border-radius:20px}
+      .city-title{font-size:23px}
+      .chart-wrap{height:240px}
+    }
+  
+    .assign-open-btn{border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap}
+    .assign-open-btn:hover{background:#fef3c7}
+    .assign-modal{position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:5000;display:none;align-items:center;justify-content:center;padding:18px}
+    .assign-modal.open{display:flex}
+    .assign-card{width:min(760px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 24px 70px rgba(15,23,42,.28);padding:20px}
+    .assign-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .assign-head h2{margin:0;font-size:21px}
+    .assign-head p{margin:5px 0 0;font-size:12px;color:#667085;line-height:1.6}
+    .assign-close{border:0;background:#f2f4f7;width:36px;height:36px;border-radius:10px;font-size:20px;cursor:pointer}
+    .assign-input{width:100%;min-height:145px;resize:vertical;border:1px solid var(--line);border-radius:14px;padding:12px;font:inherit;font-size:13px;line-height:1.6;outline:none}
+    .assign-input:focus{border-color:#93c5fd;box-shadow:0 0 0 4px rgba(59,130,246,.10)}
+    .assign-meta{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .assign-pill{font-size:11px;font-weight:800;background:#f8fafc;border:1px solid var(--line);padding:6px 8px;border-radius:999px;color:#475467}
+    .assign-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+    .assign-primary,.assign-secondary{border-radius:11px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer}
+    .assign-primary{border:1px solid #2563eb;background:#2563eb;color:white}
+    .assign-secondary{border:1px solid var(--line);background:white;color:#344054}
+    .assign-warning{display:none;margin:10px 0;padding:10px 12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px}
+    .assign-results{margin-top:14px}
+    .assign-table{width:100%;border-collapse:collapse;font-size:12px}
+    .assign-table th,.assign-table td{border-bottom:1px solid #eef2f6;padding:9px 8px;text-align:left}
+    .assign-table th{background:#f8fafc;color:#667085;position:sticky;top:0}
+    .assign-city{font-weight:900}
+    .assign-star{color:#f59e0b;margin-right:3px}
+    .assign-empty{padding:18px;border:1px dashed #cbd5e1;border-radius:13px;color:#64748b;text-align:center;font-size:12px}
+    @media (max-width:720px){.assign-open-btn{font-size:11px;padding:7px 9px}.assign-card{padding:15px;border-radius:16px}.assign-table{font-size:11px}}
+
+  
+    .climate-group{display:flex;flex-direction:column;gap:6px}
+    .group-btn{border:1px solid transparent;background:#f8fafc;border-radius:12px;padding:10px 11px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#344054;font-weight:850}
+    .group-btn:hover{background:#f2f4f7}
+    .group-btn.open{background:#f8fafc}
+    .group-left{display:flex;align-items:center;gap:8px}
+    .group-right{display:flex;align-items:center;gap:7px}
+    .group-chevron{font-size:11px;color:#98a2b3;transition:transform .18s ease}
+    .group-btn.open .group-chevron{transform:rotate(180deg)}
+    .group-children{display:none;flex-direction:column;gap:5px;padding-left:16px;margin-top:-1px;margin-bottom:4px}
+    .group-children.open{display:flex}
+    .group-children .filter-btn{background:#fff;border-color:#eef2f6;padding:9px 10px}
+    .group-children .filter-btn:hover{background:#f8fafc}
+    .group-children .filter-btn.active{background:#eff6ff;border-color:#bfdbfe}
+    .direct-group-btn{border:1px solid transparent;background:#f8fafc;border-radius:12px;padding:10px 11px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#344054}
+    .direct-group-btn:hover{background:#f2f4f7}
+    .direct-group-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8;font-weight:800}
+
+  
+    .group-btn.active{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .group-feature-btn{border:1px dashed #cbd5e1;background:#fffdf4;border-radius:10px;padding:9px 10px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#7c5a10;font-weight:850}
+    .group-feature-btn:hover{background:#fff8dc}
+    .group-feature-btn.active{background:#fff7cc;border-color:#f6c453}
+    .group-info-hero{border:1px solid #dbeafe;background:#eff6ff;border-radius:16px;padding:15px;margin:4px 0 12px}
+    .group-info-hero h3{margin:0 0 7px;font-size:16px;color:#1d4ed8}
+    .group-info-hero p{margin:0;font-size:12px;line-height:1.75;color:#334155}
+    .feature-list{margin:0;padding-left:20px}
+    .feature-list li{font-size:12px;line-height:1.75;color:#344054;margin:4px 0}
+    .subtype-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .subtype-card{border:1px solid var(--line);border-radius:12px;padding:10px 11px;background:#fff}
+    .subtype-card b{display:block;font-size:12px;color:#182230;margin-bottom:4px}
+    .subtype-card span{display:block;font-size:11px;line-height:1.65;color:#475467}
+    .group-map-note{margin-top:10px;padding:10px 12px;border-radius:12px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;font-size:11px;line-height:1.6}
+
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🌍</div>
+      <div>
+        <h1>세계 기후 탐험 지도</h1>
+        <p>도시를 눌러 기후·자연환경·생활 모습을 연결해 살펴보세요.</p>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <input id="search" type="search" autocomplete="off" placeholder="도시 검색 (예: 도쿄, 푸껫, 카이로)" />
+      <span class="search-icon">⌕</span>
+      <div id="results" class="result-list"></div>
+    </div>
+
+    <button id="assignOpenBtn" class="assign-open-btn">🎲 도시 랜덤 배정</button>
+    <div id="countPill" class="count-pill">전체 51개 도시</div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <h2>도시 고르기</h2>
+      <div id="filters" class="filter-list"></div>
+      <div class="sidebar-note">
+        ★ 표시는 기후·자연환경·문화의 관계가 비교적 뚜렷해 가이드북 주제로 추천하는 도시입니다.<br><br>※ 식물·동물은 도시 한복판에서 늘 볼 수 있다는 뜻이 아니라, 도시 주변과 해당 기후권의 대표 사례를 함께 제시합니다.
+      </div>
+    </aside>
+
+    <main id="map"></main>
+
+    <aside id="detail" class="detail">
+      <div id="empty" class="empty">
+        <div class="globe">🗺️</div>
+        <b>도시를 선택해 보세요!</b>
+        <div style="font-size:12px;margin-top:6px">지도 마커를 누르거나 검색창에서 도시를 찾아보세요.</div>
+      </div>
+
+
+      <div id="groupInfoContent" class="detail-content" style="display:none">
+        <div class="city-head">
+          <div>
+            <div id="groupEyebrow" class="eyebrow">📘 기후의 특징</div>
+            <h2 id="groupTitle" class="city-title"></h2>
+            <div id="groupSubtitle" class="country">6학년 활동지에서 배운 내용을 정리해 봅시다.</div>
+          </div>
+          <button id="groupCloseBtn" class="close-btn" aria-label="닫기">×</button>
+        </div>
+        <div id="groupInfoBody"></div>
+      </div>
+
+      <div id="detailContent" class="detail-content">
+        <div class="city-head">
+          <div>
+            <div id="eyebrow" class="eyebrow"></div>
+            <h2 id="cityTitle" class="city-title"></h2>
+            <div id="country" class="country"></div>
+            <div id="recommendBadge" class="recommend-badge" style="display:none">★ 가이드북 추천 도시</div>
+          </div>
+          <button id="closeBtn" class="close-btn" aria-label="닫기">×</button>
+        </div>
+
+        <div class="worksheet-strip">
+          <span class="worksheet-pill"><strong>1단계</strong> 기후</span>
+          <span class="worksheet-pill"><strong>2단계</strong> 의·식·주</span>
+          <span class="worksheet-pill"><strong>3단계</strong> 볼거리·축제</span>
+          <span class="worksheet-pill"><strong>4단계</strong> 연결하기</span>
+          <span class="worksheet-pill"><strong>5단계</strong> 책자 계획</span>
+        </div>
+        <div class="main-tabs">
+          <button class="tab-btn main-tab active" data-main="climate">📊 1단계 기후</button>
+          <button class="tab-btn main-tab" data-main="nature">🌿 자연환경</button>
+          <button class="tab-btn main-tab" data-main="life">🏠 2단계 의·식·주</button>
+          <button class="tab-btn main-tab" data-main="journey">🧭 3단계 볼거리·축제</button>
+          <button class="tab-btn main-tab" data-main="connect">🔗 4단계 연결</button>
+        </div>
+
+        <section id="panel-climate" class="tab-panel active">
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">연평균 기온</div>
+              <div id="annualTemp" class="stat-value"></div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">연강수량</div>
+              <div id="annualPrecip" class="stat-value"></div>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:10px;font-weight:800;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:4px 7px;border-radius:999px">통일축 그래프</span></div>
+            <div class="chart-wrap"><canvas id="climateChart"></canvas></div>
+            <div class="legend-note"><b>모든 도시 동일 기준</b> · 막대 = 월강수량(mm) · 선 = 월평균기온(℃)<br>강수량 0~800mm · 기온 -50~40℃ · 0℃ 기준선 표시</div>
+          </div>
+
+          <div id="climateWorksheetGuide"></div>
+
+          <table class="month-table">
+            <thead><tr><th>월</th><th>평균기온</th><th>강수량</th></tr></thead>
+            <tbody id="monthBody"></tbody>
+          </table>
+          <div id="warn" class="warn" style="display:none"></div>
+          <div id="source" class="source"></div>
+        </section>
+
+        <section id="panel-nature" class="tab-panel">
+          <div class="notice-box">
+            <b>📄 활동지 1~2단계와 연결!</b> 기후가 식물·동물·평균적인 날씨에 어떤 영향을 주는지 살펴보고, 의식주의 까닭을 추리할 근거를 찾아보세요.
+          </div>
+          <div class="sub-tabs">
+            <button class="tab-btn nature-tab active" data-nature="plants">🌱 식물(식생)</button>
+            <button class="tab-btn nature-tab" data-nature="animals">🐾 동물</button>
+            <button class="tab-btn nature-tab" data-nature="weather">☁️ 날씨</button>
+          </div>
+          <div id="natureContent"></div>
+        </section>
+
+        <section id="panel-life" class="tab-panel">
+          <div class="culture-note">
+            생활문화는 <b>기후만으로 결정되지 않아요.</b> 역사·종교·경제·기술의 영향도 함께 받습니다. 여기서는 그중 <b>기후와 자연환경과 연결해 생각할 수 있는 사례</b>를 살펴봅니다. 전통 의상은 도시 하나만의 옷이라기보다 <b>해당 지역·국가의 대표 사례</b>를 함께 소개합니다.
+          </div>
+          <div class="sub-tabs">
+            <button class="tab-btn life-tab active" data-life="clothing">👕 의생활</button>
+            <button class="tab-btn life-tab" data-life="food">🍚 식생활</button>
+            <button class="tab-btn life-tab" data-life="housing">🏡 주생활</button>
+          </div>
+          <div id="lifeContent"></div>
+        </section>
+
+        <section id="panel-journey" class="tab-panel">
+          <div class="notice-box">
+            <b>📄 활동지 3단계와 연결!</b> 볼거리·문화재 2곳을 고르고, 자연환경 또는 역사와의 관련성을 직접 조사해 보세요. 축제는 실제 축제를 조사하거나 가상 축제를 만들어도 됩니다.
+          </div>
+          <div id="journeyContent"></div>
+        </section>
+
+        <section id="panel-connect" class="tab-panel">
+          <div class="notice-box">
+            <b>📄 활동지 4단계와 연결!</b> 앞에서 찾은 자료 중 의·식·주·축제에서 2가지 이상을 골라 <b>기후·자연환경 → 영향 → 생활 모습</b>으로 연결해 보세요.
+          </div>
+          <div id="connectContent"></div>
+        </section>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+const CITIES = [{"climate":"열대우림(Af)","climateShort":"열대우림","emoji":"🌴","city":"싱가포르","country":"싱가포르","lat":1.3521,"lon":103.8198,"temps":[26.8,27.3,27.9,28.2,28.6,28.5,28.2,28.1,28.0,27.9,27.2,26.8],"precs":[221.0,104.9,151.1,164.0,164.3,136.5,144.9,148.8,133.4,166.5,254.2,333.1],"annualTemp":27.8,"annualPrecip":2122.7,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"열대우림(Af)","climateShort":"열대우림","emoji":"🌴","city":"쿠알라룸푸르","country":"말레이시아","lat":3.139,"lon":101.6869,"temps":[27.3,27.7,28.1,28.1,28.5,28.4,28.0,28.0,27.7,27.5,27.1,27.0],"precs":[231.3,195.6,271.5,303.6,220.1,141.5,166.2,172.6,218.3,280.5,356.5,283.9],"annualTemp":27.8,"annualPrecip":2841.6,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"사바나(Aw)","climateShort":"사바나","emoji":"🌾","city":"나이로비","country":"케냐","lat":-1.2921,"lon":36.8219,"temps":[19.7,20.5,20.5,19.3,18.5,17.6,17.0,17.3,18.5,19.3,18.3,18.6],"precs":[37.0,34.0,62.0,125.0,102.0,48.0,20.0,28.0,20.0,49.0,94.0,55.0],"annualTemp":18.8,"annualPrecip":674.0,"source":"Climate-Data.org 1991-2021","note":"표에서는 사바나(Aw)로 묶었지만, 높은 해발고도 때문에 Cfb/Cwb로 분류하는 자료도 많습니다.","recommended":true},{"climate":"사바나(Aw)","climateShort":"사바나","emoji":"🌾","city":"다윈","country":"호주","lat":-12.4634,"lon":130.8456,"temps":[28.3,28.2,28.3,28.3,27.0,25.2,24.8,25.5,27.7,29.0,29.3,28.9],"precs":[468.0,412.1,317.9,106.4,21.5,0.4,0.0,0.7,14.3,70.4,145.1,270.4],"annualTemp":27.5,"annualPrecip":1827.2,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"몬순(Am)","climateShort":"몬순","emoji":"🌧️","city":"뭄바이","country":"인도","lat":19.076,"lon":72.8777,"temps":[24.9,25.5,27.3,29.2,30.7,29.3,27.7,27.5,27.9,29.1,28.7,26.7],"precs":[0.6,1.0,1.3,0.8,6.0,516.5,790.5,483.3,352.8,86.3,8.8,2.8],"annualTemp":27.9,"annualPrecip":2250.7,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"몬순(Am)","climateShort":"몬순","emoji":"🌧️","city":"자카르타","country":"인도네시아","lat":-6.2088,"lon":106.8456,"temps":[26.9,26.8,27.4,27.9,28.0,27.7,27.3,27.6,27.8,27.9,27.7,27.3],"precs":[307.1,359.5,166.5,107.4,90.1,50.6,84.9,36.2,42.6,56.7,80.4,180.4],"annualTemp":27.5,"annualPrecip":1562.4,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"몬순(Am)","climateShort":"몬순","emoji":"🌧️","city":"푸껫","country":"태국","lat":7.8804,"lon":98.3923,"temps":[27.6,28.3,28.8,29.0,28.8,28.5,28.2,28.2,27.7,27.3,27.4,27.2],"precs":[102.2,48.9,117.8,154.5,316.4,374.6,275.9,372.2,393.9,332.5,228.9,103.2],"annualTemp":28.1,"annualPrecip":2821.0,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"스텝(BSk/BSh)","climateShort":"스텝","emoji":"🌵","city":"울란바토르","country":"몽골","lat":47.8864,"lon":106.9057,"temps":[-21.4,-16.2,-6.1,3.1,10.3,16.3,19.1,16.8,10.2,1.1,-10.4,-19.0],"precs":[1.8,2.8,4.0,9.1,21.4,44.9,79.8,66.2,28.3,9.6,6.6,3.2],"annualTemp":0.3,"annualPrecip":277.7,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"스텝(BSk/BSh)","climateShort":"스텝","emoji":"🌵","city":"마라케시","country":"모로코","lat":31.6295,"lon":-7.9811,"temps":[12.1,13.9,16.7,18.7,21.6,25.3,28.7,28.8,25.1,21.8,16.6,13.3],"precs":[25.1,21.9,33.6,23.3,11.3,3.4,1.4,3.5,18.1,17.7,29.4,23.8],"annualTemp":20.2,"annualPrecip":212.5,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"사막(BW)","climateShort":"사막","emoji":"🏜️","city":"카이로","country":"이집트","lat":30.0444,"lon":31.2357,"temps":[13.4,14.8,17.9,21.4,25.3,27.9,29.1,29.2,27.4,24.0,19.4,15.1],"precs":[5.0,4.0,3.0,1.0,0.0,0.0,0.0,0.0,0.0,1.0,2.0,2.0],"annualTemp":22.1,"annualPrecip":18.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"사막(BW)","climateShort":"사막","emoji":"🏜️","city":"두바이","country":"아랍에미리트","lat":25.2048,"lon":55.2708,"temps":[19.4,20.7,23.3,27.7,31.8,33.8,35.6,35.7,33.2,30.0,25.5,21.3],"precs":[17.0,15.0,16.0,4.0,0.0,0.0,2.0,0.0,0.0,1.0,3.0,10.0],"annualTemp":28.2,"annualPrecip":68.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"온난습윤(Cfa)","climateShort":"온난습윤","emoji":"🌳","city":"타이베이","country":"대만","lat":25.033,"lon":121.5654,"temps":[14.4,15.2,16.9,20.2,23.4,25.9,27.2,26.9,25.2,22.3,19.5,15.8],"precs":[100.0,104.0,113.0,144.0,201.0,259.0,233.0,327.0,266.0,220.0,143.0,109.0],"annualTemp":21.1,"annualPrecip":2219.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"온난습윤(Cfa)","climateShort":"온난습윤","emoji":"🌳","city":"도쿄","country":"일본","lat":35.6762,"lon":139.6503,"temps":[5.4,6.1,9.4,14.3,18.8,21.9,25.7,26.9,23.3,18.0,12.5,7.7],"precs":[59.7,56.5,116.0,133.7,139.7,167.8,156.2,154.7,224.9,234.8,96.3,57.9],"annualTemp":15.8,"annualPrecip":1598.2,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"온난습윤(Cfa)","climateShort":"온난습윤","emoji":"🌳","city":"뉴욕","country":"미국","lat":40.7128,"lon":-74.006,"temps":[1.2,2.2,5.9,11.8,17.4,22.7,26.0,25.2,21.4,15.1,9.3,4.3],"precs":[82.7,74.1,102.1,97.4,91.3,102.8,107.3,111.9,97.8,97.0,79.8,104.6],"annualTemp":13.5,"annualPrecip":1148.8,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"온난습윤(Cfa)","climateShort":"온난습윤","emoji":"🌳","city":"부에노스아이레스","country":"아르헨티나","lat":-34.6037,"lon":-58.3816,"temps":[24.9,23.8,22.1,18.2,15.0,12.2,11.2,13.3,14.8,17.8,20.8,23.4],"precs":[153.1,115.3,125.1,139.3,101.5,67.2,67.9,72.8,65.9,115.7,117.8,114.5],"annualTemp":18.1,"annualPrecip":1256.1,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"서안해양성(Cfb)","climateShort":"서안해양성","emoji":"🌊","city":"런던","country":"영국","lat":51.5074,"lon":-0.1278,"temps":[4.8,4.9,6.7,9.4,12.7,15.7,17.8,17.3,15.0,11.8,7.8,5.3],"precs":[57.0,49.0,45.0,54.0,57.0,60.0,60.0,66.0,49.0,58.0,64.0,59.0],"annualTemp":10.8,"annualPrecip":678.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"서안해양성(Cfb)","climateShort":"서안해양성","emoji":"🌊","city":"파리","country":"프랑스","lat":48.8566,"lon":2.3522,"temps":[4.3,4.6,7.4,10.7,14.3,17.7,19.8,19.4,16.4,12.6,7.9,4.8],"precs":[57.0,52.0,53.0,56.0,69.0,63.0,60.0,60.0,51.0,65.0,64.0,70.0],"annualTemp":11.7,"annualPrecip":720.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":false},{"climate":"서안해양성(Cfb)","climateShort":"서안해양성","emoji":"🌊","city":"암스테르담","country":"네덜란드","lat":52.3676,"lon":4.9041,"temps":[3.9,3.9,6.1,9.6,13.1,15.8,18.0,17.8,15.4,11.8,7.8,4.9],"precs":[69,57,58,57,68,73,88,86,76,70,68,74],"annualTemp":10.7,"annualPrecip":844,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/europe/the-netherlands/north-holland/amsterdam-3330/","note":"바다의 영향을 받아 여름은 비교적 선선하고 겨울은 온화하며, 비가 한 해 동안 비교적 고르게 내리는 서안해양성(Cfb) 기후의 특징을 살펴보기 좋은 도시입니다.","recommended":false},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"로마","country":"이탈리아","lat":41.9028,"lon":12.4964,"temps":[7.2,7.8,10.6,13.8,17.9,22.5,25.2,25.4,21.1,17.1,12.6,8.5],"precs":[67.0,75.0,77.0,83.0,60.0,34.0,24.0,23.0,84.0,122.0,135.0,94.0],"annualTemp":15.8,"annualPrecip":878.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"아테네","country":"그리스","lat":37.9838,"lon":23.7275,"temps":[10.1,10.6,12.8,16.2,21.1,26.1,28.9,29.0,24.7,20.1,15.5,11.7],"precs":[52.2,36.7,37.7,26.0,16.3,9.8,9.4,2.6,16.6,37.0,66.1,65.5],"annualTemp":18.9,"annualPrecip":375.9,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"샌프란시스코","country":"미국","lat":37.7749,"lon":-122.4194,"temps":[10.7,11.8,13.0,13.9,15.4,16.9,17.7,18.2,18.2,16.9,13.4,10.7],"precs":[98.8,100.2,69.4,35.2,13.3,3.8,0.0,1.0,1.9,20.0,50.3,105.9],"annualTemp":14.7,"annualPrecip":499.8,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"온대겨울건조(Cwa/Cwb)","climateShort":"온대겨울건조","emoji":"🌾","city":"하노이","country":"베트남","lat":21.0278,"lon":105.8342,"temps":[16.2,18.3,21.1,24.9,27.2,28.9,28.7,27.9,26.8,24.7,21.2,17.2],"precs":[47.0,37.0,61.0,109.0,242.0,236.0,272.0,310.0,225.0,122.0,62.0,37.0],"annualTemp":23.6,"annualPrecip":1760.0,"source":"Climate-Data.org 1991-2021","note":"자료원·관측 지점에 따라 Cwa 또는 Cfa로 분류되는 경계 사례입니다.","recommended":true},{"climate":"온대겨울건조(Cwa/Cwb)","climateShort":"온대겨울건조","emoji":"🌾","city":"카트만두","country":"네팔","lat":27.7172,"lon":85.324,"temps":[9.2,11.3,14.6,17.9,19.1,20.5,20.3,20.3,19.5,16.8,13.6,10.7],"precs":[44.0,56.0,59.0,79.0,205.0,460.0,778.0,643.0,334.0,98.0,30.0,26.0],"annualTemp":16.2,"annualPrecip":2812.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"모스크바","country":"러시아","lat":55.7558,"lon":37.6173,"temps":[-6.2,-5.9,-0.7,6.9,13.6,17.3,19.7,17.6,11.9,5.8,-0.5,-4.4],"precs":[53.2,44.0,39.0,36.6,61.2,77.4,83.8,78.3,66.1,70.1,51.9,51.4],"annualTemp":6.3,"annualPrecip":713.0,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"오슬로","country":"노르웨이","lat":59.9139,"lon":10.7522,"temps":[-4.4,-4.2,-0.5,4.6,10.1,14.2,16.5,15.1,10.6,5.0,0.4,-3.5],"precs":[63.5,47.2,45.1,50.0,65.9,77.8,82.2,101.2,80.1,95.6,88.7,67.0],"annualTemp":5.3,"annualPrecip":864.3,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"스톡홀름","country":"스웨덴","lat":59.3293,"lon":18.0686,"temps":[-1.8,-1.7,0.5,5.4,10.6,14.8,18.0,17.0,13.1,7.6,3.6,0.2],"precs":[44.0,37.0,34.0,36.0,45.0,67.0,72.0,73.0,56.0,52.0,53.0,50.0],"annualTemp":7.3,"annualPrecip":619.0,"source":"Climate-Data.org 1991-2021","note":"C/D 경계 온도 기준(-3℃ 또는 0℃)에 따라 Cfb/Dfb로 달라질 수 있습니다.","recommended":false},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"헬싱키","country":"핀란드","lat":60.1699,"lon":24.9384,"temps":[-4.3,-4.8,-1.4,4.5,10.4,15.2,18.2,16.5,11.6,5.7,1.3,-1.9],"precs":[54.9,36.3,32.7,34.7,38.9,62.7,59.3,76.0,60.3,83.7,72.8,61.1],"annualTemp":5.9,"annualPrecip":673.4,"source":"JMA 1991-2020","note":"","recommended":false},{"climate":"냉대겨울건조(Dw)","climateShort":"냉대겨울건조","emoji":"🏔️","city":"베이징","country":"중국","lat":39.9042,"lon":116.4074,"temps":[-2.8,0.6,7.5,15.1,21.3,25.3,27.2,26.0,21.2,13.8,5.2,-1.0],"precs":[2.1,5.6,8.5,21.9,36.5,72.7,170.6,114.1,53.3,29.3,13.7,2.5],"annualTemp":13.3,"annualPrecip":530.8,"source":"JMA 1991-2020","note":"","recommended":true},{"climate":"툰드라(ET)","climateShort":"툰드라","emoji":"🧊","city":"우수아이아","country":"아르헨티나","lat":-54.8019,"lon":-68.303,"temps":[7.1,6.9,5.3,2.4,-0.6,-3.0,-3.1,-2.5,-0.6,1.6,4.2,6.1],"precs":[109.0,84.0,88.0,77.0,67.0,61.0,60.0,61.0,58.0,65.0,88.0,108.0],"annualTemp":2.0,"annualPrecip":926.0,"source":"Climate-Data.org 1991-2021","note":"","recommended":true},{"climate":"툰드라(ET)","climateShort":"툰드라","emoji":"🧊","city":"우트키아그빅(배로)","country":"미국 알래스카","lat":71.2906,"lon":-156.7887,"temps":[-24.2,-24.4,-23.6,-15.6,-5.2,2.2,5.4,4.3,0.9,-6.0,-14.6,-21.3],"precs":[4.1,5.1,4.3,4.3,7.1,10.7,24.6,27.4,19.6,13.5,9.1,5.6],"annualTemp":-10.2,"annualPrecip":135.4,"source":"NOAA 1991-2020","note":"","recommended":true},{"climate":"빙설(EF)","climateShort":"빙설","emoji":"🥶","city":"맥머도 기지","country":"남극","lat":-77.8419,"lon":166.6863,"temps":[-2.8,-8.8,-17.3,-20.9,-23.3,-22.9,-25.8,-27.4,-25.7,-19.4,-9.7,-3.5],"precs":[16.0,29.0,15.0,18.0,21.0,28.0,17.0,13.0,10.0,20.0,12.0,14.0],"annualTemp":-17.3,"annualPrecip":213.0,"source":"NSF/NOAA climate statistics","note":"","recommended":false},{"climate":"빙설(EF)","climateShort":"빙설","emoji":"🥶","city":"그린란드 내륙(서밋 캠프)","country":"그린란드","lat":72.5796,"lon":-38.4592,"temps":[-43.0,-42.0,-41.0,-33.0,-23.0,-15.0,-13.0,-16.0,-26.0,-34.0,-36.0,-40.0],"precs":[null,null,null,null,null,null,null,null,null,null,null,null],"annualTemp":-30.2,"annualPrecip":null,"source":"Summit Camp AWS; 월별 강수량 생략","note":"빙설지역 특성상 월별 강수량 표준값을 일반 도시처럼 비교하기 어려워 강수량 자료를 생략했습니다.","recommended":false},{"climate":"고산기후(H)","climateShort":"고산기후","emoji":"⛰️","city":"키토","country":"에콰도르","lat":-0.1807,"lon":-78.4678,"temps":[11.1,11.2,11.2,11.3,11.5,11.4,11.5,11.7,11.5,11.3,11.1,11.1],"precs":[280.0,270.0,315.0,311.0,254.0,156.0,116.0,119.0,207.0,274.0,287.0,288.0],"annualTemp":11.3,"annualPrecip":2877.0,"source":"Climate-Data.org 1991-2021","note":"H는 학교 지리에서 쓰는 고산기후 묶음입니다.","recommended":false},{"climate":"고산기후(H)","climateShort":"고산기후","emoji":"⛰️","city":"보고타","country":"콜롬비아","lat":4.711,"lon":-74.0721,"temps":[12.7,12.9,13.0,12.9,12.9,12.8,12.8,13.2,13.3,12.7,12.5,12.6],"precs":[81.0,101.0,141.0,152.0,103.0,54.0,48.0,31.0,41.0,110.0,133.0,96.0],"annualTemp":12.9,"annualPrecip":1091.0,"source":"Climate-Data.org 1991-2021","note":"H는 학교 지리에서 쓰는 고산기후 묶음입니다.","recommended":true},{"climate":"고산기후(H)","climateShort":"고산기후","emoji":"⛰️","city":"라파스","country":"볼리비아","lat":-16.4897,"lon":-68.1193,"temps":[7.7,7.7,7.6,7.1,6.4,5.5,4.7,5.2,6.0,7.2,8.1,8.1],"precs":[142.0,121.0,96.0,50.0,20.0,16.0,18.0,27.0,41.0,63.0,67.0,121.0],"annualTemp":6.8,"annualPrecip":782.0,"source":"Climate-Data.org 1991-2021","note":"학교 지리에서는 고산기후로 다루지만, 엄밀한 Köppen 분류에서는 ET로 보는 자료도 있습니다.","recommended":true},{"climate":"고산기후(H)","climateShort":"고산기후","emoji":"⛰️","city":"멕시코시티","country":"멕시코","lat":19.4326,"lon":-99.1332,"temps":[13.4,15.1,16.7,18.4,18.7,17.6,16.4,16.5,16.0,15.1,14.1,13.7],"precs":[26.0,23.0,32.0,53.0,83.0,159.0,171.0,166.0,183.0,108.0,37.0,17.0],"annualTemp":16.0,"annualPrecip":1058.0,"source":"Climate-Data.org 1991-2021","note":"학교 지리에서는 고산기후로 묶을 수 있으나, 엄밀한 Köppen 분류에서는 Cwb로 보는 자료가 많습니다.","recommended":true},{"climate":"열대우림(Af)","climateShort":"열대우림","emoji":"🌴","city":"마나우스","country":"브라질","lat":-3.119,"lon":-60.0217,"temps":[26.0,25.8,25.9,25.8,25.8,25.9,26.1,27.1,27.5,27.6,27.2,26.4],"precs":[322,331,395,385,334,200,133,114,133,159,193,302],"annualTemp":26.4,"annualPrecip":3001,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/south-america/brazil/amazonas/manaus-1882/","note":"아마존 열대우림 한가운데에 있는 도시로, 열대우림 기후와 자연환경의 관계를 살펴보기 좋은 지역입니다.","recommended":true},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"망통","country":"프랑스","lat":43.7751,"lon":7.4966,"temps":[6.2,6.2,8.9,11.7,15.4,19.5,21.9,22.0,18.6,15.0,10.4,7.4],"precs":[73,61,65,81,56,42,23,25,69,104,134,89],"annualTemp":13.6,"annualPrecip":822,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/europe/france/provence-alpes-cote-d-azur/menton-717816/","note":"세부적으로는 Csb로 분류되는 자료가 있으며, 여름이 건조하고 겨울에 비가 더 많은 지중해성 기후의 특징이 잘 나타납니다.","recommended":true},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"삿포로","country":"일본","lat":43.0618,"lon":141.3545,"temps":[-3.2,-2.7,1.1,7.3,13.0,17.0,21.1,22.3,18.6,12.1,5.2,-0.9],"precs":[108.4,91.9,77.6,54.6,55.5,60.4,90.7,126.8,142.2,109.9,113.8,114.5],"annualTemp":9.2,"annualPrecip":1146.3,"source":"JMA 1991-2020","sourceUrl":"https://www.data.jma.go.jp/tcc/tcc/products/climate/climatview/graph_mkhtml_nrm.php?m=1&n=47412","note":"냉대 습윤 기후(Dfb)의 대표 사례로, 겨울철 많은 눈과 뚜렷한 사계절을 살펴보기 좋습니다.","recommended":true},{"climate":"냉대겨울건조(Dw)","climateShort":"냉대겨울건조","emoji":"🏔️","city":"하얼빈","country":"중국","lat":45.8038,"lon":126.535,"temps":[-18.5,-13.1,-2.9,7.2,15.0,21.0,23.1,21.5,15.8,6.8,-4.5,-15.6],"precs":[6,7,17,31,65,100,155,130,64,37,17,11],"annualTemp":4.6,"annualPrecip":640,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/asia/china/heilongjiang/harbin-3488/","note":"냉대 겨울 건조 기후(Dwa)의 특징과 매우 추운 겨울을 이용한 얼음·눈 문화를 함께 살펴보기 좋은 지역입니다.","recommended":true},{"climate":"사바나(Aw)","climateShort":"사바나","emoji":"🌾","city":"치앙마이","country":"태국","lat":18.7883,"lon":98.9853,"temps":[21.6,24.4,27.1,29.1,27.4,26.3,25.7,25.2,25.1,24.5,23.1,21.1],"precs":[8,3,13,27,110,129,186,240,235,121,25,11],"annualTemp":25.1,"annualPrecip":1108,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/asia/thailand/chiang-mai-province/chiang-mai-1779/","note":"우기와 건기가 뚜렷한 Aw 기후의 특징이 잘 나타나며, 고온한 계절과 몬순의 영향을 함께 살펴보기 좋은 도시입니다.","recommended":true},{"climate":"몬순(Am)","climateShort":"몬순","emoji":"🌧️","city":"양곤","country":"미얀마","lat":16.8409,"lon":96.1735,"temps":[24.5,26.5,28.6,30.5,28.4,26.5,26.1,26.0,26.3,26.9,26.4,24.7],"precs":[4,2,12,42,284,456,491,494,368,180,37,5],"annualTemp":26.8,"annualPrecip":2375,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/asia/myanmar/yangon/yangon-311/","note":"건기와 우기의 차이가 매우 커 열대 몬순 기후의 특징을 그래프에서 뚜렷하게 확인할 수 있습니다.","recommended":true},{"climate":"사막(BW)","climateShort":"사막","emoji":"🏜️","city":"리마","country":"페루","lat":-12.0464,"lon":-77.0428,"temps":[21.2,22.1,22.0,20.5,18.6,17.3,16.6,16.5,16.8,17.4,18.3,19.7],"precs":[27,40,34,12,9,12,14,12,11,10,9,13],"annualTemp":18.9,"annualPrecip":203,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/south-america/peru/lima/lima-1014/","note":"해안 사막도시로, 비는 매우 적지만 해안 안개와 높은 습도가 나타나는 독특한 사막환경을 살펴보기 좋습니다.","recommended":true},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"케이프타운","country":"남아프리카공화국","lat":-33.9249,"lon":18.4241,"temps":[20.0,20.1,18.9,16.9,15.1,13.6,13.0,13.0,14.0,15.7,17.1,19.0],"precs":[17,16,18,50,72,112,103,90,55,36,32,20],"annualTemp":16.4,"annualPrecip":621,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/africa/south-africa/western-cape/cape-town-788/","note":"남반구의 지중해성 기후 사례로, 12~2월이 건조한 여름이고 6~8월이 비가 많은 겨울이라는 점을 비교하기 좋습니다.","recommended":true},{"climate":"서안해양성(Cfb)","climateShort":"서안해양성","emoji":"🌊","city":"밴쿠버","country":"캐나다","lat":49.2827,"lon":-123.1207,"temps":[2.9,3.2,4.9,7.8,11.8,14.7,17.9,18.2,14.8,10.0,5.5,2.7],"precs":[312,200,257,181,120,103,56,75,123,253,362,309],"annualTemp":9.5,"annualPrecip":2351,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/north-america/canada/british-columbia/vancover-963/","note":"바다의 영향으로 겨울이 비교적 온화하고, 많은 비와 온대우림을 함께 살펴보기 좋은 서안해양성 기후 도시입니다.","recommended":true},{"climate":"냉대겨울건조(Dw)","climateShort":"냉대겨울건조","emoji":"🏔️","city":"이르쿠츠크","country":"러시아","lat":52.2869,"lon":104.305,"temps":[-19.6,-15.5,-6.4,3.0,10.0,17.3,19.2,16.9,10.3,1.7,-7.9,-16.1],"precs":[11,10,15,26,40,69,99,104,62,26,18,16],"annualTemp":1.1,"annualPrecip":496,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/asia/russian-federation/irkutsk-oblast/irkutsk-473/","note":"겨울은 매우 춥고 건조하며 여름에 비가 늘어나는 냉대 겨울 건조 기후의 특징과 큰 연교차가 뚜렷합니다.","recommended":false},{"climate":"툰드라(ET)","climateShort":"툰드라","emoji":"🧊","city":"누크","country":"그린란드","lat":64.1835,"lon":-51.7216,"temps":[-14.9,-14.4,-11.7,-5.4,-0.3,5.5,8.5,8.0,3.6,-3.2,-9.4,-12.8],"precs":[63,51,56,61,66,66,64,84,103,83,85,69],"annualTemp":-3.9,"annualPrecip":851,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/north-america/greenland/nuuk/nuuk-5730/","note":"가장 따뜻한 7월 평균기온도 약 8.5℃에 불과해 툰드라 기후의 특징을 확인하기 좋은 도시입니다.","recommended":false},{"climate":"사막(BW)","climateShort":"사막","emoji":"🏜️","city":"라스베이거스","country":"미국","lat":36.1699,"lon":-115.1398,"temps":[9.5,11.8,15.9,19.7,25.0,30.7,33.9,33.0,28.5,21.2,13.8,8.9],"precs":[14.1,20.2,7.4,5.4,1.9,1.3,9.2,8.0,8.6,8.3,8.0,10.9],"annualTemp":21.0,"annualPrecip":103.3,"source":"JMA 1991-2020","sourceUrl":"https://www.data.jma.go.jp/tcc/tcc/products/climate/climatview/graph_mkhtml_nrm.php?e=6&k=0&m=11&n=72386&r=1&s=1&y=2023","note":"한여름 평균기온이 매우 높고 연강수량이 매우 적어 뜨거운 사막기후의 특징이 선명합니다.","recommended":false},{"climate":"온대겨울건조(Cwa/Cwb)","climateShort":"온대겨울건조","emoji":"🌾","city":"아디스아바바","country":"에티오피아","lat":8.9806,"lon":38.7578,"temps":[15.1,16.4,17.2,17.2,17.0,15.7,14.8,14.7,14.8,14.6,14.7,14.4],"precs":[18,28,72,147,178,271,386,419,286,51,11,7],"annualTemp":15.6,"annualPrecip":1874,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/africa/ethiopia/addis-ababa/addis-abeba-532/","note":"고도가 높아 적도 부근인데도 연중 온화하며, 여름 우기와 겨울 건기가 뚜렷한 고지대형 Cw 기후를 살펴보기 좋습니다.","recommended":false},{"climate":"지중해성(Cs)","climateShort":"지중해성","emoji":"🍋","city":"바르셀로나","country":"스페인","lat":41.3874,"lon":2.1686,"temps":[7.9,8.5,10.9,13.5,17.0,21.3,23.8,23.9,20.9,17.4,12.1,8.6],"precs":[39,39,43,54,48,37,27,43,82,94,64,44],"annualTemp":15.5,"annualPrecip":614,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/europe/spain/catalonia/barcelona-1564/","note":"여름 강수량이 적고 가을·겨울에 비가 늘어나는 지중해성 기후의 계절 차이가 비교적 잘 보입니다.","recommended":true},{"climate":"냉대습윤(Df)","climateShort":"냉대습윤","emoji":"❄️","city":"로바니에미","country":"핀란드","lat":66.5039,"lon":25.7294,"temps":[-10.7,-9.9,-5.8,0.2,6.6,12.6,16.0,13.5,8.4,1.4,-3.6,-7.6],"precs":[43,37,38,37,54,77,83,76,58,55,54,51],"annualTemp":1.8,"annualPrecip":663,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/europe/finland/rovaniemi/rovaniemi-677/","note":"긴 겨울과 짧고 선선한 여름, 타이가와 순록 문화 등 냉대기후와 생활 모습을 연결해 보기 좋은 도시입니다.","recommended":false},{"climate":"온난습윤(Cfa)","climateShort":"온난습윤","emoji":"🌤️","city":"시드니","country":"호주","lat":-33.8688,"lon":151.2093,"temps":[22.8,22.6,21.3,18.8,15.8,13.6,12.7,13.5,16.0,18.0,19.7,21.4],"precs":[79,105,86,89,85,101,57,59,54,59,77,61],"annualTemp":18.0,"annualPrecip":912,"source":"Climate-Data.org 1991-2021","sourceUrl":"https://en.climate-data.org/oceania/australia/new-south-wales/sydney-24/","note":"남반구의 온난습윤(Cfa) 기후 사례입니다. 12~2월이 여름이라는 점을 북반구 도시와 비교하기 좋습니다.","recommended":true}];
+const CLIMATE_INFO = {"열대우림": {"plantWhy": "1년 내내 기온이 높고 비가 많이 내려 식물이 쉬지 않고 자랄 수 있습니다. 키 큰 상록수 아래에 덩굴식물과 착생식물까지 여러 층의 숲이 만들어집니다.", "animalWhy": "먹이와 물, 숨을 곳이 풍부해 매우 다양한 동물이 살아갑니다.", "weather": "연중 덥고 습하며 비가 자주 옵니다. 짧은 시간에 강한 소나기나 스콜성 비가 내리는 날도 많습니다."}, "사바나": {"plantWhy": "우기에는 비가 충분하지만 건기에는 물이 부족해집니다. 그래서 긴 풀과 가뭄을 견디는 나무가 드문드문 자라는 초원이 발달합니다.", "animalWhy": "넓은 초원에는 풀을 먹는 동물과 그 동물을 사냥하는 포식자가 함께 살아가기 좋습니다.", "weather": "1년 내내 비교적 따뜻하지만 비가 많이 오는 우기와 비가 적은 건기가 뚜렷합니다."}, "몬순": {"plantWhy": "기온이 높고 우기에 비가 매우 많이 내려 숲과 농경지가 잘 발달합니다. 해안이나 하구에는 맹그로브가 나타나기도 합니다.", "animalWhy": "우기에 물과 먹이가 풍부해지고, 숲·습지·강 주변에 다양한 동물이 살아갑니다.", "weather": "연중 따뜻하며 계절풍의 영향으로 특정 시기에 비가 매우 많이 내립니다. 폭우와 홍수에 대비가 필요한 곳도 있습니다."}, "스텝": {"plantWhy": "비가 적어 큰 나무가 빽빽하게 자라기 어렵습니다. 대신 짧은 풀과 건조함을 견디는 초본·관목이 넓게 나타납니다.", "animalWhy": "넓은 초원을 이동하며 풀을 먹는 초식동물과 설치류가 잘 적응합니다.", "weather": "강수량이 적고 건조합니다. 대륙 안쪽 지역은 여름과 겨울의 기온 차이가 매우 클 수 있습니다."}, "사막": {"plantWhy": "비가 매우 적기 때문에 물을 저장하거나 잎을 작게 만들어 수분 손실을 줄이는 식물이 살아남기 쉽습니다.", "animalWhy": "더위를 피해 밤에 활동하거나 물을 적게 써도 살 수 있는 동물이 많습니다.", "weather": "비가 거의 오지 않고 매우 건조합니다. 낮에는 덥고 밤에는 기온이 크게 내려가는 경우가 많습니다."}, "온난습윤": {"plantWhy": "사계절이 있고 비가 한 해 동안 비교적 꾸준히 내려 활엽수와 여러 농작물이 자라기 좋습니다.", "animalWhy": "숲·하천·도시 녹지 등 다양한 환경이 있어 여러 새와 포유류가 살아갑니다.", "weather": "여름은 덥고 습하며 겨울은 비교적 서늘하거나 춥습니다. 뚜렷한 건기가 없는 편입니다."}, "서안해양성": {"plantWhy": "연중 비교적 온화하고 비가 고르게 내려 초지와 활엽수림이 잘 발달합니다.", "animalWhy": "푸른 초지와 숲, 습지가 유지되어 사슴류·여우·물새 등이 살아가기 좋습니다.", "weather": "여름은 비교적 선선하고 겨울은 아주 혹독하지 않으며, 1년 내내 비가 비교적 고르게 옵니다."}, "지중해성": {"plantWhy": "여름의 건조함을 견디기 위해 잎이 작고 단단한 상록 관목이 많습니다. 올리브·포도·감귤류도 이 환경에 잘 적응합니다.", "animalWhy": "건조한 관목지와 숲에는 도마뱀, 토끼, 여우, 다양한 새가 살아갑니다.", "weather": "여름은 덥고 건조하며, 겨울은 비교적 온화하고 비가 더 자주 옵니다."}, "온대겨울건조": {"plantWhy": "여름철 비가 많아 숲과 농경지가 발달하고, 겨울에는 건조한 계절 변화가 나타납니다.", "animalWhy": "산지·숲·농경지처럼 다양한 서식지가 있어 여러 포유류와 새가 살아갑니다.", "weather": "여름에는 따뜻하거나 덥고 비가 많이 오며, 겨울은 상대적으로 건조합니다."}, "냉대습윤": {"plantWhy": "겨울이 길고 춥지만 여름에는 나무가 자랄 만큼 따뜻해집니다. 추위에 강한 침엽수가 넓게 자라 '타이가'를 이루는 곳이 많습니다.", "animalWhy": "두꺼운 털, 겨울잠, 계절 이동처럼 추운 겨울에 적응한 동물이 많습니다.", "weather": "겨울이 길고 춥고 눈이 내리며, 여름은 짧지만 비교적 따뜻합니다. 비와 눈이 연중 내리는 편입니다."}, "냉대겨울건조": {"plantWhy": "추운 겨울을 견디는 침엽수와 낙엽수가 자라며, 여름철 강수에 맞춰 식물이 빠르게 성장합니다.", "animalWhy": "추운 겨울을 견디거나 계절에 따라 이동하는 동물이 많습니다.", "weather": "겨울은 매우 춥고 건조하며, 여름에는 따뜻해지고 비가 집중됩니다. 연교차가 큰 편입니다."}, "툰드라": {"plantWhy": "여름이 매우 짧고 땅속이 오래 얼어 있어 큰 나무가 자라기 어렵습니다. 이끼·지의류·작은 풀과 낮은 관목이 주로 자랍니다.", "animalWhy": "두꺼운 털이나 지방층을 가진 동물, 계절에 따라 이동하는 동물이 추위에 적응해 살아갑니다.", "weather": "1년의 대부분이 매우 춥고 여름이 짧습니다. 강수량도 적고, 영구동토층이 나타나는 곳이 많습니다."}, "빙설": {"plantWhy": "가장 따뜻한 달에도 매우 추워 땅이 눈과 얼음으로 덮여 있습니다. 큰 식물은 거의 자라지 못합니다.", "animalWhy": "내륙 빙상에는 동물이 거의 없고, 먹이가 있는 바다와 가까운 해안에는 펭귄·물개·바닷새 등이 나타납니다.", "weather": "1년 내내 매우 춥고 바람이 강하며, 눈과 얼음이 오래 유지됩니다."}, "고산기후": {"plantWhy": "고도가 높아 기온이 낮고, 높이에 따라 식생이 달라집니다. 고산 초원과 낮은 관목, 추위에 강한 작물이 나타납니다.", "animalWhy": "라마·알파카 같은 고산 가축이나 고산 조류처럼 낮은 기온과 산악 지형에 적응한 동물이 살아갑니다.", "weather": "위도가 낮아도 고도가 높으면 선선하거나 춥습니다. 햇빛과 자외선이 강하고 낮과 밤의 기온 차이가 클 수 있습니다."}};
+const CITY_INFO = {"싱가포르":{"plants":["열대 상록수","난초","맹그로브"],"animals":["긴꼬리원숭이","코뿔새","수달"],"clothing":{"traditional":"다문화 국가라 전통복식도 다양합니다. 말레이계의 바주 쿠룽·바주 멜라유처럼 헐렁하고 가벼운 옷은 더운 열대 환경에서 통풍하기 좋습니다.","modern":"연중 덥고 습해 얇고 통풍이 잘 되는 옷을 많이 입습니다. 강한 햇빛과 갑작스러운 비에 대비해 모자·우산을 자주 사용합니다."},"food":"코코넛, 열대과일, 향신료, 해산물처럼 따뜻한 지역에서 얻기 쉬운 재료가 음식에 많이 쓰입니다.","housing":"전통 숍하우스의 아케이드나 깊은 차양처럼 강한 햇빛과 비를 피하고 통풍을 돕는 요소를 볼 수 있습니다.","crops":["코코넛","바나나","파파야","카사바"],"cropQuestion":"싱가포르 주변 동남아의 덥고 비가 많은 환경에서는 코코넛·바나나·파파야·카사바 같은 작물이 왜 잘 자랄까요? 이런 작물이 싱가포르 음식에 자주 쓰이는 것과 어떤 관련이 있을까요?"},"쿠알라룸푸르":{"plants":["열대 상록수","고무나무","기름야자"],"animals":["긴꼬리원숭이","코뿔새","왕도마뱀"],"clothing":"고온다습한 날씨 때문에 얇고 통풍이 되는 옷이 편리하며, 우기에 대비한 우산·우비가 유용합니다.","food":"코코넛밀크, 바나나·파파야 같은 열대과일, 향신료를 활용한 음식이 많습니다.","housing":"전통 말레이 가옥은 바닥을 띄우고 창을 크게 내어 통풍시키는 방식이 발달했습니다."},"나이로비":{"plants":["아카시아","사바나 풀","관목"],"animals":["기린","얼룩말","사자"],"clothing":{"traditional":"케냐의 전통복식은 민족마다 다릅니다. 마사이의 슈카처럼 천을 여러 겹 둘러 입는 옷은 햇빛을 가리고 아침저녁의 선선함에도 대응하기 좋습니다.","modern":"낮에는 따뜻하지만 고도가 높아 아침저녁은 선선하므로 얇은 옷을 여러 겹 입고, 우기에는 가벼운 방수 겉옷을 준비합니다."},"food":"옥수수, 콩, 채소와 목축에서 얻는 고기·우유가 식생활에서 중요합니다.","housing":"도시 자체는 현대적이지만 주변 사바나 지역에서는 햇빛과 큰 일교차를 고려한 생활 모습을 볼 수 있습니다.","crops":["옥수수","콩","차","커피"],"cropQuestion":"나이로비는 적도 가까이에 있지만 해발고도가 높아 비교적 선선합니다. 이런 환경에서 옥수수·콩뿐 아니라 차·커피도 재배되는 까닭은 무엇일까요? 이 작물들은 사람들의 먹거리와 음료에 어떻게 이어질까요?"},"다윈":{"plants":["유칼립투스","사바나 풀","판다누스·맹그로브"],"animals":["왈라비","바다악어","앵무새류"],"clothing":"연중 덥기 때문에 가벼운 옷을 입고, 우기에는 강한 비에 대비한 우비나 방수 신발이 유용합니다.","food":"해산물과 열대과일을 쉽게 접할 수 있으며, 주변 자연에서 얻는 식재료도 다양합니다.","housing":"열대성 폭우와 사이클론에 대비해 튼튼한 구조와 배수·환기를 중요하게 생각합니다.","festival":{"name":"다윈 페스티벌","text":"건기에 열리는 야외 문화행사로, 비가 적고 비교적 활동하기 좋은 계절을 활용합니다.","question":"왜 큰 야외행사를 우기보다 건기에 열면 더 편리할까요?"}},"뭄바이":{"plants":["반얀나무","코코넛야자","맹그로브"],"animals":["홍학","표범(도시 주변 국립공원)","원숭이류"],"clothing":{"traditional":"사리·도티·쿠르타처럼 천을 둘러 입거나 헐렁하게 입는 전통복식이 널리 쓰였습니다. 면처럼 가볍고 땀을 흡수하는 소재가 덥고 습한 날씨에 잘 맞습니다.","modern":"덥고 습해 가벼운 면옷을 즐겨 입고, 몬순 우기에는 우산·우비·방수 신발이 중요합니다."},"food":"쌀, 코코넛, 향신료, 생선·해산물이 지역 음식에 많이 쓰입니다.","housing":"몬순 폭우에 대비해 지붕·처마·배수 시설을 중요하게 생각합니다.","festival":{"name":"가네샤 축제","text":"뭄바이의 대표 문화축제입니다. 축제의 기원은 종교·문화에 있지만 몬순 시기와 겹치는 해가 많습니다.","question":"폭우가 잦은 계절에 큰 축제를 열면 이동·옷차림·행사 장소는 어떻게 달라져야 할까요?"},"crops":["쌀","코코넛","망고","사탕수수"],"cropQuestion":"더운 날씨와 몬순 우기의 많은 비는 쌀·코코넛·망고·사탕수수 재배에 어떤 영향을 줄까요? 이 재료들이 지역의 음식과 음료에 어떻게 활용될지 생각해 봅시다."},"자카르타":{"plants":["코코넛야자","바나나","맹그로브"],"animals":["긴꼬리원숭이","왕도마뱀","물새류"],"clothing":"덥고 습해 얇고 통풍이 잘 되는 옷이 편리하며, 우기에는 우산과 방수용품이 필요합니다.","food":"쌀, 코코넛, 바나나, 향신료 등 열대 지역의 농산물이 음식에 널리 쓰입니다.","housing":"홍수 위험이 있는 지역의 전통 가옥에서는 바닥을 높이는 방식이 나타나며, 현대 도시에서는 배수시설이 매우 중요합니다."},"푸껫":{"plants":["고무나무","코코넛야자","맹그로브"],"animals":["긴꼬리원숭이","코뿔새","바다거북"],"clothing":{"traditional":"태국 남부에서는 사롱 계열의 천이나 바틱 천을 활용한 옷을 볼 수 있습니다. 가볍고 헐렁해 더운 날씨에 움직이기 편합니다.","modern":"연중 덥고 습해 얇고 통풍되는 옷이 적합하며, 우기에는 우산·우비와 빨리 마르는 신발이 유용합니다."},"food":"해산물, 코코넛, 파인애플과 다양한 열대과일을 활용한 음식이 많습니다.","housing":"해안 어촌의 전통 가옥에서는 통풍과 습기·물에 대비한 구조를 볼 수 있습니다.","festival":{"name":"송끄란","text":"태국 전역에서 열리는 새해 물축제입니다. 종교·문화적 전통이 중심이지만 매우 더운 계절에 물을 사용하는 모습도 눈에 띕니다.","question":"더운 계절의 날씨와 '물을 뿌리는 축제'의 체감은 어떤 관련이 있을까요?"},"crops":["고무","코코넛","파인애플","캐슈너트"],"cropQuestion":"연중 따뜻하고 우기에 비가 많이 오는 푸껫에서는 코코넛·파인애플·캐슈너트 같은 작물이 왜 잘 자랄까요? 위 작물 가운데 먹거리로 활용되는 것들은 지역 음식에 어떻게 쓰일까요?"},"울란바토르":{"plants":["짧은 초원풀","쑥류","건조 관목"],"animals":["말","양","마멋"],"clothing":{"traditional":"몽골의 델은 긴 옷자락을 여며 입고 허리띠로 묶는 옷입니다. 겨울에는 털·솜을 덧대고 가죽 부츠와 함께 입어 강한 추위와 바람을 막습니다.","modern":"겨울에는 두꺼운 패딩·털모자·장갑·방한화를 착용하고, 여름에도 일교차가 커 얇은 겉옷을 준비합니다."},"food":"농사보다 목축에 유리한 환경 때문에 고기와 유제품을 활용한 음식이 발달했습니다.","housing":"유목 생활에 맞춰 이동이 쉽고 보온성이 좋은 펠트 천막집 '게르'가 대표적입니다.","festival":{"name":"나담 축제","text":"여름에 씨름·말타기·활쏘기를 즐기는 몽골의 대표 축제입니다.","question":"겨울이 매우 추운 몽골에서 야외 경기 중심의 큰 축제를 여름에 여는 까닭을 기후와 연결해 생각해 볼까요?"},"crops":["보리","밀","감자","사료용 풀"],"cropQuestion":"춥고 건조하며 농사할 수 있는 기간이 짧은 곳에서는 어떤 작물이 살아남기 쉬울까요? 위 작물과 목축이 몽골의 식생활에 어떤 영향을 주었을지 생각해 봅시다."},"마라케시":{"plants":["올리브","대추야자","건조 관목"],"animals":["단봉낙타","도마뱀류","사막여우(주변 건조지역)"],"clothing":{"traditional":"질라바처럼 길고 헐렁한 옷은 햇빛을 가리고 몸 주변에 공기층을 만들어 더위를 줄이는 데 도움이 됩니다. 계절에 따라 면이나 양모 소재를 사용합니다.","modern":"낮에는 햇빛이 강해 통풍되는 긴 옷과 모자가 편하고, 겨울 아침저녁에는 기온이 내려가 겉옷이 필요합니다."},"food":"올리브, 대추야자, 곡물, 향신료를 활용한 타진·쿠스쿠스 같은 음식이 유명합니다.","housing":"전통 리야드는 두꺼운 벽과 안뜰을 두어 뜨거운 햇빛을 줄이고 내부를 비교적 시원하게 유지합니다.","crops":["올리브","대추야자","밀","감귤류"],"cropQuestion":"비가 적은 마라케시에서 올리브·대추야자·밀·감귤류를 기르려면 물을 어떻게 얻어야 할까요? 이렇게 재배한 작물은 지역 음식과 어떻게 연결될까요?"},"카이로":{"plants":["대추야자","아카시아","나일강 주변 작물"],"animals":["단봉낙타","사막여우","나일강 물새류"],"clothing":{"traditional":"갈라베야처럼 길고 헐렁한 옷은 강한 햇빛과 뜨거운 공기, 먼지를 피하는 데 도움이 됩니다. 머리를 가리는 천도 햇빛과 모래바람을 막는 역할을 합니다.","modern":"가볍고 통풍되는 옷을 입되 강한 햇빛 때문에 긴소매·모자·선글라스를 활용하는 경우가 많습니다."},"food":"물이 있는 나일강 주변에서 재배한 밀·콩·채소·대추야자가 음식 문화에 중요합니다.","housing":"전통 건축에서는 두꺼운 벽과 작은 창, 안뜰을 이용해 뜨거운 햇빛을 줄이는 방법을 볼 수 있습니다.","crops":["밀","잠두콩","대추야자","채소"],"cropQuestion":"사막 한가운데 있는 카이로 주변에서 밀·콩·채소·대추야자를 재배할 수 있는 까닭은 무엇일까요? 어떤 자연환경이 사람들의 식생활을 가능하게 했을까요?"},"두바이":{"plants":["대추야자","가프나무","맹그로브"],"animals":["단봉낙타","아라비아오릭스","가젤"],"clothing":{"traditional":"칸두라와 아바야처럼 길고 헐렁한 전통복식은 문화·종교적 의미가 크며, 몸에 달라붙지 않는 형태는 뜨거운 햇빛 아래에서 공기가 통하는 데도 도움이 됩니다.","modern":"얇고 통풍되는 소재와 자외선 차단을 중시합니다. 실내 냉방이 강해 얇은 겉옷을 함께 준비하기도 합니다."},"food":"대추야자와 해산물, 곡물 등이 전통 식생활에서 중요했습니다.","housing":"전통 건축의 바람탑(바르질)은 바람을 집 안으로 끌어들여 더위를 줄이는 데 이용되었습니다.","festival":{"name":"낙타 경주·사막 문화 행사","text":"선선한 계절에 낙타 경주와 야외 행사가 활발하게 열립니다.","question":"한여름이 매우 뜨거운 사막 도시에서 야외 행사를 겨울철에 많이 여는 이유는 무엇일까요?"},"crops":["대추야자","토마토","오이","잎채소"],"cropQuestion":"비가 거의 오지 않는 두바이에서 대추야자와 채소를 기르려면 어떤 방법이 필요할까요? 물 부족은 사람들이 재배하는 작물과 먹거리에 어떤 영향을 줄까요?"},"타이베이":{"plants":["반얀나무","대나무","녹나무"],"animals":["대만원숭이","백로류","다람쥐류"],"clothing":{"traditional":"전통 농촌에서는 면 소재의 헐렁한 작업복과 삿갓 등을 사용해 더위와 햇빛, 비를 피했습니다. 대만의 전통복식은 여러 민족과 문화의 영향을 함께 받았습니다.","modern":"여름에는 얇고 통풍되는 옷을 입고, 비와 태풍에 대비해 우산·우비를 자주 사용합니다. 겨울에는 습하고 서늘해 얇은 겉옷을 겹쳐 입습니다."},"food":"쌀, 차, 채소와 아열대 과일이 풍부해 다양한 음식 문화가 발달했습니다.","housing":"강한 비와 태풍에 대비한 배수·차양·튼튼한 창호가 중요합니다.","crops":["쌀","차","고구마","토란"],"cropQuestion":"따뜻하고 비가 많은 타이베이의 기후는 쌀·차·고구마·토란 재배에 어떤 도움을 줄까요? 이런 작물들이 대만의 음식과 음료에 자주 등장하는 까닭은 무엇일까요?"},"도쿄":{"plants":["벚나무","은행나무","상록활엽수"],"animals":["너구리","까마귀","백로류"],"clothing":{"traditional":"여름의 유카타는 얇은 면 소재로 만들어 덥고 습한 계절에 비교적 시원하게 입을 수 있습니다. 다른 계절의 기모노는 속옷과 겹을 조절해 기온 변화에 대응합니다.","modern":"사계절이 뚜렷해 여름에는 얇은 옷, 겨울에는 코트와 방한복을 입고 장마철에는 우산·방수 신발을 자주 사용합니다."},"food":"쌀과 계절 채소, 해산물을 활용한 음식이 발달했고 계절 식재료를 중요하게 여기는 문화가 있습니다.","housing":"전통가옥의 깊은 처마와 통풍 구조는 덥고 습한 여름을 보내는 데 도움을 줍니다.","festival":{"name":"벚꽃놀이(하나미)","text":"봄철 기온이 오르면 벚꽃이 피고, 사람들이 공원에 모여 꽃을 감상합니다.","question":"벚꽃이 피는 시기가 매년 기온 변화와 관련이 있는 까닭은 무엇일까요?"},"crops":["쌀","무","배추·잎채소","차"],"cropQuestion":"사계절이 뚜렷하고 비가 충분한 환경에서는 계절마다 어떤 작물을 기를 수 있을까요? 쌀과 여러 채소가 일본 음식의 중요한 재료가 된 이유를 기후와 연결해 봅시다."},"뉴욕":{"plants":["단풍나무","참나무","도시 공원의 잔디"],"animals":["회색다람쥐","너구리","철새류"],"clothing":{"traditional":"뉴욕은 여러 문화가 모인 도시라 하나의 전통의상으로 대표하기 어렵습니다. 과거 겨울 생활에서는 울 코트·망토·모자처럼 보온성이 높은 옷을 겹쳐 입는 방식이 중요했습니다.","modern":"여름에는 반팔과 가벼운 옷, 겨울에는 두꺼운 코트·패딩·장갑을 착용해 계절별 옷차림 차이가 큽니다."},"food":"도시 음식문화 자체는 세계 각지의 영향을 받지만, 주변 온대 지역에서는 곡물·과일·낙농이 다양하게 생산됩니다.","housing":"겨울 난방과 단열, 여름 냉방을 모두 고려해야 하는 사계절형 생활이 나타납니다.","crops":["사과","옥수수","포도","채소류"],"cropQuestion":"사계절이 뚜렷한 뉴욕 주변에서는 왜 사과·옥수수·포도·채소처럼 여러 종류의 작물을 기를 수 있을까요? 계절 변화가 식재료의 다양성에 어떤 영향을 줄까요?"},"부에노스아이레스":{"plants":["팜파스풀","자카란다","가로수 활엽수"],"animals":["카피바라(주변 습지)","물새류","남미너구리류"],"clothing":"남반구이므로 12~2월이 여름이고 6~8월이 겨울입니다. 계절에 따라 옷을 바꿔 입습니다.","food":"주변 팜파스의 넓은 초원에서 목축이 발달해 소고기를 활용한 음식 문화가 유명합니다.","housing":"더운 여름에는 그늘과 환기를, 겨울에는 보온을 고려한 생활이 필요합니다."},"런던":{"plants":["참나무","너도밤나무","푸른 초지"],"animals":["붉은여우","회색다람쥐","물새류"],"clothing":{"traditional":"런던을 대표하는 하나의 전통의상보다는, 과거 서늘하고 습한 날씨에 울 코트·망토·모자 같은 겉옷을 겹쳐 입는 생활이 흔했습니다.","modern":"기온은 비교적 온화하지만 비가 자주 오므로 얇은 옷을 겹쳐 입고 방수 재킷이나 우산을 자주 활용합니다."},"food":"영국의 푸른 초지와 온화한 기후는 목축·낙농과 관련이 있어 치즈·유제품 문화와 연결해 볼 수 있습니다.","housing":"비와 습기에 대비한 벽돌집과 지붕, 겨울 난방과 단열이 중요합니다.","festival":{"name":"첼시 플라워 쇼","text":"런던에서 열리는 큰 정원 행사로, 영국의 정원 문화와 다양한 식물을 살펴볼 수 있습니다.","question":"연중 비교적 온화하고 비가 고르게 오는 환경은 정원 문화에 어떤 도움을 줄까요?"},"crops":["밀","보리","감자","사과"],"cropQuestion":"여름이 심하게 덥지 않고 비가 비교적 고르게 오는 환경은 밀·보리·감자·사과와 초지에 어떤 영향을 줄까요? 이런 농산물과 목축은 지역 식생활과 어떻게 연결될까요?"},"파리":{"plants":["플라타너스","밤나무","도시 주변 포도밭"],"animals":["고슴도치","여우","물새류"],"clothing":"사계절에 맞춰 겹쳐 입으며 비가 올 때를 대비한 외투와 우산이 유용합니다.","food":"온대 지역에서 밀·유제품·과일·포도 등 다양한 농산물이 생산되어 빵·치즈·와인 문화와 연결됩니다.","housing":"겨울 보온과 비를 고려한 석조·벽돌 건축이 많습니다.","festival":{"name":"몽마르트르 포도 수확 축제","text":"파리 몽마르트르의 작은 포도밭 수확을 기념하는 축제가 열립니다.","question":"온대 지역에서 포도 재배가 가능하다는 점을 기후와 연결해 설명해 볼까요?"}},"로마":{"plants":["올리브","포도나무","이탈리아소나무"],"animals":["도마뱀류","멧돼지(도시 외곽)","지중해 새류"],"clothing":{"traditional":"고대 로마의 튜니카·토가처럼 몸에 달라붙지 않는 옷은 린넨·양모 등을 사용했고, 계절에 따라 소재와 겹을 달리했습니다. 전통복식은 기후뿐 아니라 사회·문화의 영향도 컸습니다.","modern":"여름에는 가볍고 햇빛을 막는 옷과 모자를 활용하고, 겨울에는 비와 서늘한 날씨에 대비한 겉옷을 입습니다."},"food":"올리브유, 포도·와인, 밀, 토마토 같은 지중해 농산물이 음식 문화와 밀접합니다.","housing":"두꺼운 석조 벽, 덧문과 그늘을 만드는 구조는 여름의 강한 햇빛을 줄이는 데 도움을 줍니다.","crops":["올리브","포도","밀","토마토"],"cropQuestion":"여름이 덥고 건조하고 겨울이 온화한 로마에서 올리브·포도·밀·토마토가 잘 자라는 까닭은 무엇일까요? 이 작물들이 지역 음식의 주요 재료가 된 이유를 생각해 봅시다."},"아테네":{"plants":["올리브","포도나무","마키 관목"],"animals":["육지거북","도마뱀류","염소(주변 지역)"],"clothing":{"traditional":"고대 그리스의 키톤처럼 천을 느슨하게 둘러 입는 옷은 더운 계절에 공기가 통하기 쉬웠습니다. 겨울이나 산지에서는 양모 망토를 덧입기도 했습니다.","modern":"여름에는 얇고 밝은 옷, 모자와 자외선 차단이 유용하고, 겨울에는 비에 대비한 가벼운 겉옷을 입습니다."},"food":"올리브유, 포도, 밀, 채소를 활용한 지중해식 음식이 발달했습니다.","housing":"차양·발코니·밝은 외벽 등 강한 여름 햇빛을 줄이는 생활 방식이 나타납니다.","crops":["올리브","포도","밀","무화과"],"cropQuestion":"여름에 비가 적고 햇빛이 강한 아테네에서는 올리브·포도·밀·무화과가 어떤 조건에서 잘 자랄까요? 이 작물들이 전통 식생활에 많이 쓰이는 이유를 기후와 연결해 봅시다."},"샌프란시스코":{"plants":["해안 관목","사이프러스","레드우드(주변 지역)"],"animals":["바다사자","항구물개","펠리컨"],"clothing":"여름에도 안개와 바닷바람 때문에 얇은 옷을 여러 겹 입는 경우가 많습니다.","food":"해산물이 풍부하고, 주변 캘리포니아의 지중해성 기후 지역에서는 포도와 과일 재배가 활발합니다.","housing":"바닷바람과 안개에 대비한 단열과 창호가 필요하며, 강한 햇빛보다 선선한 해양 영향이 큽니다."},"하노이":{"plants":["벼","대나무","반얀나무"],"animals":["물소","백로류","원숭이류(주변 산지)"],"clothing":{"traditional":"아오자이와 논라(원뿔 삿갓)는 베트남의 대표적인 전통복식 사례입니다. 얇은 천과 넓은 삿갓은 더위와 강한 햇빛을 피하는 데 도움이 됩니다.","modern":"여름에는 얇고 통풍되는 옷과 우산·우비를 사용하고, 겨울에는 북부 특유의 서늘한 날씨 때문에 재킷이나 얇은 패딩을 입기도 합니다."},"food":"여름철 풍부한 비는 벼농사와 관련이 있으며 쌀과 채소·허브를 활용한 음식이 발달했습니다.","housing":"강한 비와 습기에 대비해 처마·통풍·배수를 중요하게 생각합니다.","crops":["벼","채소·허브","차","바나나·리치"],"cropQuestion":"여름에 덥고 비가 많이 오는 하노이에서는 벼와 채소·허브가 자라기에 어떤 조건이 갖추어질까요? 수확한 작물은 지역 음식에 어떻게 활용될까요?"},"카트만두":{"plants":["벼·옥수수","소나무","진달래류"],"animals":["히말라야원숭이","야크(더 높은 지역)","고산 조류"],"clothing":{"traditional":"다우라 수루왈과 숄 등 네팔의 전통복식은 지역·민족별로 다양합니다. 고지대에서는 양모 숄과 겹쳐 입는 옷이 서늘한 아침저녁을 견디는 데 도움이 됩니다.","modern":"기온 차가 커 얇은 옷을 여러 겹 입고, 몬순 우기에는 우산·우비와 미끄럼에 강한 신발을 준비합니다."},"food":"계단식 밭과 골짜기에서 쌀·옥수수·감자·렌틸콩 등을 재배해 식생활에 활용합니다.","housing":"비가 많이 오는 계절을 고려한 지붕과 배수, 고지대의 서늘함을 고려한 보온이 중요합니다.","crops":["쌀","옥수수","감자","렌틸콩"],"cropQuestion":"높낮이가 다른 산지와 골짜기에서는 기온과 물의 양이 어떻게 달라질까요? 그 차이가 쌀·옥수수·감자·렌틸콩처럼 서로 다른 작물을 기르는 데 어떤 영향을 줄까요?"},"모스크바":{"plants":["자작나무","가문비나무","소나무"],"animals":["붉은여우","산토끼","다람쥐"],"clothing":{"traditional":"러시아의 추운 겨울에는 모피 모자, 두꺼운 양모 외투, 펠트 부츠인 발렌키처럼 보온성이 높은 옷과 신발이 발달했습니다.","modern":"겨울에는 패딩·털모자·장갑·방한화를 착용하고 여러 겹 입습니다. 짧은 여름에는 가벼운 옷으로 바뀝니다."},"food":"짧은 재배기간에도 잘 자라는 감자·호밀·양배추와 저장식품을 많이 활용해 왔습니다.","housing":"강한 난방, 이중창, 단열이 겨울 생활에서 매우 중요합니다.","festival":{"name":"마슬레니차","text":"겨울이 끝나고 봄을 맞는 시기에 열리는 전통 행사입니다. 문화적·종교적 의미가 중심입니다.","question":"겨울이 긴 지역에서 '봄의 시작'을 기념하는 행사가 특별하게 느껴지는 까닭은 무엇일까요?"},"crops":["감자","호밀","양배추","귀리·밀"],"cropQuestion":"겨울이 길고 농사할 수 있는 기간이 짧은 모스크바 주변에서는 어떤 특징을 가진 작물이 유리할까요? 수확한 작물을 긴 겨울까지 먹기 위해 사람들은 어떤 방법을 사용했을까요?"},"오슬로":{"plants":["가문비나무","소나무","자작나무"],"animals":["무스","붉은여우","바닷새"],"clothing":{"traditional":"노르웨이의 부나드는 지역별로 모습이 다르며 양모 소재가 많이 쓰입니다. 양모 옷은 서늘한 기후에서 체온을 유지하는 데 유리합니다.","modern":"겨울에는 방한복과 방수 신발, 여름에도 바람과 비에 대비한 얇은 재킷을 준비하는 경우가 많습니다."},"food":"차가운 바다의 생선과 감자·유제품 등이 전통 식생활에서 중요합니다.","housing":"나무와 단열재를 이용한 보온, 눈을 고려한 지붕과 난방이 중요합니다.","festival":{"name":"홀멘콜렌 스키 축제","text":"눈이 있는 겨울·초봄에 스키 경기가 열리는 오슬로의 대표 겨울 행사입니다.","question":"눈이 많이 쌓이는 기후가 겨울 스포츠 문화 발달에 어떤 영향을 주었을까요?"},"crops":["보리","귀리","감자","베리류"],"cropQuestion":"서늘한 기후에서 잘 자라는 보리·귀리·감자·베리류에는 어떤 특징이 있을까요? 이런 작물과 목축은 사람들의 식생활에 어떻게 연결될까요?"},"스톡홀름":{"plants":["가문비나무","소나무","자작나무"],"animals":["노루","무스(주변 지역)","물새류"],"clothing":"겨울에는 방한복을, 비가 오는 날에는 방수 겉옷을 자주 사용합니다.","food":"생선, 감자, 유제품, 베리류 등 북유럽 자연환경에서 얻기 쉬운 재료를 많이 활용해 왔습니다.","housing":"단열이 좋은 목조·석조 주택과 난방이 중요합니다.","festival":{"name":"하지 축제(미드서머)","text":"해가 매우 길어지는 초여름에 열리는 스웨덴의 대표 계절 행사입니다.","question":"고위도 지역에서 여름의 긴 낮이 사람들에게 특별한 계절로 느껴지는 이유는 무엇일까요?"}},"헬싱키":{"plants":["가문비나무","소나무","자작나무"],"animals":["산토끼","붉은여우","물새류"],"clothing":"겨울에는 두꺼운 방한복과 미끄럼을 줄이는 신발이 필요하며, 여름은 비교적 선선합니다.","food":"생선, 감자, 호밀, 베리와 버섯 같은 북유럽 식재료가 중요합니다.","housing":"단열·난방이 매우 중요하고, 추운 날씨와 관련해 사우나 문화도 널리 발달했습니다."},"베이징":{"plants":["버드나무","포플러","낙엽활엽수"],"animals":["까치","참새류","산지 사슴류"],"clothing":{"traditional":"북부 중국에서는 겨울 추위를 막기 위해 솜을 넣은 긴 겉옷과 두꺼운 신발·모자를 입어 왔습니다. 긴 옷은 차가운 바람을 막는 데도 도움이 됩니다.","modern":"여름에는 얇은 옷을 입지만 겨울에는 두꺼운 패딩과 장갑·모자가 필요할 만큼 계절별 옷차림 차이가 큽니다."},"food":"비교적 건조한 북부 지역에서 밀 재배가 중요해 면·만두·빵 같은 밀 음식이 발달했습니다.","housing":"전통 사합원은 안뜰과 벽이 바람을 줄이고, 겨울에는 난방을 중요하게 생각했습니다.","festival":{"name":"룽칭샤 빙등제(베이징 근교)","text":"추운 겨울에 얼음 조형물과 빙등을 즐기는 계절 행사입니다.","question":"겨울이 춥고 건조한 지역에서 얼음 조형물을 오래 유지하기 쉬운 까닭은 무엇일까요?"},"crops":["밀","옥수수","조","배추"],"cropQuestion":"비교적 건조하고 겨울이 추운 베이징 주변에서는 논농사와 밭농사 중 어느 쪽이 더 유리할까요? 밀·옥수수·조·배추가 많이 이용되는 이유를 기후와 연결해 봅시다."},"우수아이아":{"plants":["남극너도밤나무","이끼","터석초"],"animals":["펭귄","바다사자","가마우지"],"clothing":{"traditional":"도시를 대표하는 하나의 전통의상보다는 파타고니아 지역에서 양모 폰초·망토처럼 바람과 추위를 막는 옷을 활용해 온 사례를 볼 수 있습니다.","modern":"여름에도 바람이 강하고 서늘해 방풍·방수 겉옷을 겹쳐 입고, 겨울에는 보온성이 높은 외투와 부츠가 필요합니다."},"food":"차가운 바다의 해산물과 주변 목축에서 얻는 양고기 등이 지역 음식에 나타납니다.","housing":"강한 바람과 추위에 대비한 단열·난방과 경사진 지붕이 중요합니다.","festival":{"name":"가장 긴 밤 축제","text":"남반구 겨울에 밤이 길어지는 시기를 기념하는 우수아이아의 계절 행사입니다.","question":"남쪽 고위도 지역에서 겨울의 '긴 밤'이 특별한 축제 주제가 되는 이유는 무엇일까요?"},"crops":["감자","잎채소","딸기류·베리","온실 채소"],"cropQuestion":"여름이 짧고 서늘한 우수아이아에서는 어떤 작물이 짧은 재배 기간을 견딜 수 있을까요? 부족한 따뜻함을 보완해 채소를 기르려면 어떤 방법을 쓸 수 있을까요?"},"우트키아그빅(배로)":{"plants":["이끼","지의류","사초류"],"animals":["북극곰","순록(카리부)","고래·물개"],"clothing":{"traditional":"이누피아트 전통의 파카는 순록·물개가죽과 털을 이용해 보온성을 높였고, 털부츠와 장갑도 혹한과 바람을 견디도록 만들었습니다.","modern":"고성능 방한복·방풍 재킷·보온 부츠를 여러 겹 착용하며, 노출되는 피부를 최소화합니다."},"food":"전통적으로 고래·물개·순록 등 북극의 동물을 이용한 식생활이 발달했습니다.","housing":"영구동토층이 녹아 집이 기울지 않도록 땅과 직접 맞닿는 부분을 줄이는 방식이 중요합니다.","festival":{"name":"날루카탁(Nalukataq)","text":"고래잡이 공동체가 봄철 포경 뒤 수확과 공동체를 기념하는 행사입니다.","question":"농사가 어려운 북극 환경에서 바다 동물이 식생활과 공동체 행사에 중요한 까닭은 무엇일까요?"},"crops":["야생 베리류","식용 뿌리·잎 식물","실내·온실 채소(제한적)"],"cropQuestion":"땅이 오랫동안 얼어 있고 여름이 매우 짧다면 밭농사는 얼마나 가능할까요? 이런 환경에서 사람들은 식물성 먹거리를 어디에서 얻을 수 있을까요?"},"맥머도 기지":{"plants":["이끼·조류(제한적)","지의류","큰 식물은 거의 없음"],"animals":["아델리펭귄","웨델물범","스쿠아"],"clothing":"일상복보다 전문 방한복·고글·장갑·방한화가 생존에 필수적입니다.","food":"농사를 짓기 어려워 대부분의 식량을 외부에서 운송하거나 저장합니다.","housing":"연구기지는 강풍과 혹한을 견디도록 단열된 모듈형 건물과 안전시설을 사용합니다.","festival":{"name":"전통 지역 축제 없음","text":"상주 전통 주민이 있는 도시가 아니라 연구기지이므로 일반적인 의식주·축제 문화와는 다르게 보아야 합니다.","question":"사람이 살기 어려운 기후에서는 '도시 문화' 대신 어떤 시설과 기술이 중요해질까요?"}},"그린란드 내륙(서밋 캠프)":{"plants":["거의 없음"],"animals":["내륙 빙상에는 야생동물이 거의 없음"],"clothing":"극저온과 강풍을 견디는 전문 방한복과 고글이 필수적입니다.","food":"농업이 불가능해 연구기지의 식량은 외부에서 운송합니다.","housing":"빙상 위 연구시설은 혹한·강풍·눈에 견디도록 단열하고 유지·보수합니다.","festival":{"name":"전통 지역 축제 없음","text":"영구적인 일반 도시가 아니라 빙상 연구기지입니다.","question":"식물과 동물이 거의 없는 내륙 빙상에서 사람이 오래 머물려면 무엇을 외부에서 가져와야 할까요?"}},"키토":{"plants":["파라모 초원","안데스 관목","난초류"],"animals":["벌새","안데스여우","콘도르(주변 고산)"],"clothing":"적도 부근이지만 고도가 높아 선선하고 일교차가 커 얇은 옷을 여러 겹 입는 것이 편리합니다.","food":"감자·옥수수·퀴노아처럼 고산지대에서 재배하기 좋은 작물이 식생활에서 중요합니다.","housing":"강한 자외선과 선선한 기온, 우기에 대비한 지붕과 보온을 고려합니다.","festival":{"name":"안데스 지역의 태양·수확 행사","text":"키토 주변 안데스 공동체에서는 계절과 태양을 기념하는 전통 행사가 이어집니다.","question":"고산 농업을 하는 사람들에게 해와 비의 계절 변화가 중요한 이유는 무엇일까요?"}},"보고타":{"plants":["파라모의 프라일레혼","안데스 숲","난초류"],"animals":["안경곰(주변 산지)","벌새","안데스여우"],"clothing":{"traditional":"콜롬비아 안데스 지역의 루아나처럼 두꺼운 천을 어깨에 둘러 입는 옷은 고지대의 서늘한 날씨와 큰 일교차에 대응하기 좋습니다.","modern":"연중 선선하고 비가 자주 와 긴 바지와 얇은 재킷을 많이 입고, 우산이나 방수 겉옷을 준비합니다."},"food":"감자·옥수수·콩 등 고산 농업에서 얻는 작물이 음식에 많이 쓰입니다.","housing":"선선하고 비가 잦은 환경 때문에 벽돌 건물과 지붕·배수, 실내 보온이 중요합니다.","crops":["감자","옥수수","콩","온대성 채소"],"cropQuestion":"적도 가까이인데도 서늘한 보고타에서 감자·옥수수·콩·채소를 기를 수 있는 까닭은 무엇일까요? 위도만으로 기후를 설명하기 어려운 이유와 연결해 봅시다."},"라파스":{"plants":["이추 고산풀","퀴노아","감자"],"animals":["라마","알파카","비쿠냐·콘도르"],"clothing":{"traditional":"아이마라 여성의 폴레라와 숄, 촐로 모자 등은 문화적 의미가 크며, 고산지대에서는 알파카·양모로 만든 숄과 옷을 겹쳐 입어 추위를 막습니다.","modern":"강한 자외선 때문에 모자·선글라스를 쓰고, 아침저녁의 추위와 큰 일교차에 대비해 여러 겹의 옷을 입습니다."},"food":"감자·퀴노아와 라마·알파카 등 고산 환경에 적응한 작물과 가축이 식생활과 연결됩니다.","housing":"일교차와 추위에 대비해 두꺼운 벽과 햇빛을 활용하는 생활이 중요합니다.","festival":{"name":"아이마라 새해(안데스 지역)","text":"동지 무렵 태양의 주기를 기념하는 안데스 전통 행사가 라파스 주변에서도 열립니다.","question":"농사와 계절 변화가 중요한 고산 지역에서 태양의 움직임을 기념하는 이유는 무엇일까요?"},"crops":["감자","퀴노아","보리","오카"],"cropQuestion":"높고 추운 고산지대에서는 어떤 작물이 낮은 기온과 짧은 재배 기간을 견딜 수 있을까요? 감자·퀴노아·보리·오카가 중요한 식량이 된 이유를 생각해 봅시다."},"멕시코시티":{"plants":["소나무·참나무","노팔 선인장","용설란"],"animals":["아홀로틀(소치밀코)","벌새","코요테(주변 지역)"],"clothing":{"traditional":"레보소(숄)와 사라페처럼 몸에 두르거나 겹쳐 입는 옷은 고원에서 아침저녁이 선선할 때 보온층으로 활용할 수 있습니다.","modern":"낮에는 비교적 온화하지만 일교차가 있어 얇은 옷을 겹쳐 입고, 우기에는 우산이나 방수 재킷을 준비합니다."},"food":"옥수수·콩·노팔처럼 고원과 멕시코 환경에 적응한 작물이 음식의 기본 재료가 됩니다.","housing":"우기에 대비한 배수와, 고지대의 일교차에 대응하는 실내 보온이 중요합니다.","crops":["옥수수","콩","노팔 선인장","아마란스"],"cropQuestion":"고도가 높은 멕시코시티 주변에서는 옥수수·콩·노팔·아마란스가 왜 오랫동안 중요한 작물이 되었을까요? 이 작물들이 일상 음식에 어떻게 쓰일지 찾아봅시다."},"마나우스":{"plants":["고무나무","카폭나무","야자·난초"],"animals":["나무늘보","큰부리새","분홍돌고래(강 주변)"],"clothing":{"traditional":"아마존의 여러 원주민 공동체는 서로 다른 복식 문화를 가지고 있습니다. 더운 습한 환경에서는 식물섬유·면 등 가벼운 소재와 간소한 옷차림을 활용한 사례가 있습니다.","modern":"연중 덥고 매우 습해 얇고 빨리 마르는 옷이 편하며, 소나기와 강한 햇빛에 대비해 우산·모자를 사용합니다."},"food":"카사바, 민물고기, 아사이·쿠푸아수 같은 열대 과일이 아마존 지역 식생활과 연결됩니다.","housing":"마나우스 주변 범람원 강변 공동체에서는 물높이 변화에 대비해 바닥을 높인 집을 볼 수 있습니다.","festival":{"name":"아마존 지역 민속축제","text":"아마존 지역의 강·숲·동물 이야기가 음악과 춤, 장식에 자주 등장합니다.","question":"강과 열대우림이 사람들의 이야기·음식·축제 소재에 자주 등장하는 까닭은 무엇일까요?"},"crops":["카사바","아사이","쿠푸아수","카카오","바나나"],"cropQuestion":"1년 내내 덥고 비가 많이 오는 아마존에서는 카사바·바나나·카카오·아사이 같은 작물이 자라기에 어떤 점이 유리할까요? 이 풍부한 식물이 지역 음식과 음료에 어떤 영향을 주었을까요?"},"망통":{"plants":["레몬·감귤류","올리브","로즈마리·지중해 관목"],"animals":["도마뱀류","나비류","지중해 새류"],"clothing":{"traditional":"프랑스 남동부 프로방스 지역의 전통복식에는 면·린넨 셔츠, 치마·앞치마, 햇빛을 가리는 모자 등이 나타납니다. 따뜻하고 햇빛이 강한 계절에 가벼운 소재가 유용했습니다.","modern":"여름에는 가벼운 옷과 모자, 겨울에는 비교적 온화하지만 비와 바람에 대비한 얇은 겉옷을 입습니다."},"food":"레몬·올리브·허브·해산물을 활용한 지중해 음식 문화를 볼 수 있습니다.","housing":"차양·덧문·테라스처럼 여름 햇빛을 줄이고 바람을 이용하는 건축 요소가 잘 어울립니다.","festival":{"name":"망통 레몬 축제","text":"매년 수많은 레몬과 오렌지로 거대한 조형물과 퍼레이드를 만드는 축제가 열립니다.","question":"망통에서는 왜 '레몬'이 도시를 대표하는 축제의 주인공이 되었을까요? 여름이 건조하고 겨울이 온화한 지중해성 기후와 연결해 생각해 봅시다.","sourceTitle":"망통 레몬 축제 공식 사이트","sourceUrl":"https://www.fete-du-citron.com/?lang=en"},"crops":["레몬","오렌지","올리브","허브"],"cropQuestion":"겨울이 온화하고 여름이 건조한 망통에서는 레몬·오렌지·올리브·허브가 잘 자라는 까닭이 무엇일까요? 이런 작물들이 지역의 음식과 축제에 어떻게 활용될까요?"},"삿포로":{"plants":["자작나무","가문비·전나무","라일락"],"animals":["에조붉은여우","에조다람쥐","사슴(홋카이도)"],"clothing":{"traditional":"홋카이도 아이누의 아투시(나무껍질 섬유 옷) 같은 전통복식이 있으며, 추운 계절에는 동물가죽이나 두꺼운 옷을 겹쳐 보온했습니다.","modern":"눈이 많고 매우 추운 겨울에는 두꺼운 패딩·장갑·방수 부츠가 필수적이며, 여름은 비교적 선선합니다."},"food":"감자·옥수수·유제품처럼 서늘한 홋카이도에서 잘 생산되는 재료가 음식 문화와 연결됩니다.","housing":"단열과 난방, 제설·적설을 고려한 지붕과 출입구가 중요합니다.","festival":{"name":"삿포로 눈축제","text":"겨울에 많은 눈을 이용해 거대한 눈·얼음 조각을 만드는 삿포로의 대표 축제입니다.","question":"겨울에 눈이 많이 내리는 자연환경이 세계적인 눈축제로 이어질 수 있었던 까닭은 무엇일까요?","sourceTitle":"삿포로 눈축제 공식 사이트","sourceUrl":"https://www.snowfes.com/"},"crops":["감자","옥수수","밀","콩"],"cropQuestion":"여름이 비교적 선선하고 겨울이 긴 삿포로 주변에서는 감자·옥수수·밀·콩이 왜 중요한 작물이 되었을까요? 이 재료들이 홋카이도 음식에 어떻게 쓰일지 찾아봅시다."},"하얼빈":{"plants":["자작나무","낙엽송","소나무"],"animals":["노루","붉은여우","철새류"],"clothing":{"traditional":"중국 동북 지역에서는 겨울 추위를 막기 위해 솜을 두껍게 넣은 긴 옷과 털모자·방한화를 사용해 왔습니다.","modern":"겨울에는 두꺼운 다운 재킷, 털모자, 장갑, 방한 부츠를 착용하고 얼굴까지 가리는 방한용품을 사용하기도 합니다."},"food":"밀·옥수수·감자와 추운 겨울에 저장하기 쉬운 절임·보존 음식이 발달했습니다.","housing":"강한 단열, 이중창, 중앙난방이 긴 혹한기를 보내는 데 매우 중요합니다.","festival":{"name":"하얼빈 얼음·눈 축제","text":"혹한의 겨울을 이용해 거대한 얼음 건축물과 눈 조각을 만드는 행사가 열립니다.","question":"하얼빈의 매우 낮은 겨울 기온은 거대한 얼음 조형물을 만들고 오래 유지하는 데 어떤 도움을 줄까요?","sourceTitle":"Harbin Ice-Snow World","sourceUrl":"https://www.cice.org.cn/portal/site/zongzhan/special/2026/2026bxdsj/index-en.jsp"},"crops":["콩","옥수수","봄밀","감자"],"cropQuestion":"겨울이 매우 길고 추운 하얼빈에서는 언제 농사를 지을 수 있을까요? 짧은 따뜻한 계절에 기른 콩·옥수수·봄밀·감자를 겨울까지 먹기 위해 어떤 저장 방법이 필요할까요?"},"치앙마이":{"plants":["티크나무","대나무","벼·열대 과수"],"animals":["아시아코끼리(주변 보호지역)","원숭이류","코뿔새류"],"clothing":{"traditional":"태국 북부 란나 지역에서는 면으로 만든 상의와 파신(통치마) 같은 전통복식을 볼 수 있습니다. 가볍고 통풍되는 옷감은 따뜻한 날씨에 잘 맞습니다.","modern":"덥고 햇빛이 강해 얇은 옷과 모자를 입고, 우기에는 우산·우비와 빨리 마르는 신발을 사용합니다."},"food":"쌀, 허브, 채소, 열대과일처럼 따뜻하고 비가 많은 계절에 잘 자라는 식재료가 음식에 많이 쓰입니다.","housing":"전통 란나 가옥은 목재를 사용하고 바닥을 높이며 지붕 경사를 크게 두어 통풍과 우기 강수에 대응했습니다.","festival":{"name":"송끄란","text":"태국의 새해 물축제로 종교·문화적 전통이 중심이지만 4월의 매우 더운 날씨에 물을 사용하는 모습이 특히 인상적입니다.","question":"송끄란이 기후 때문에 생긴 축제라고 단정할 수는 없어요. 하지만 가장 더운 시기에 물을 사용하는 축제가 사람들에게 어떻게 느껴질지 생각해 봅시다."},"crops":["쌀","롱간","리치","망고","커피"],"cropQuestion":"우기와 건기가 뚜렷한 치앙마이에서는 쌀과 열대과일을 언제 재배하기 좋을까요? 주변 고지대의 더 서늘한 환경에서는 재배하는 작물이 어떻게 달라질까요?"},"양곤":{"plants":["티크나무","반얀나무","맹그로브"],"animals":["긴꼬리원숭이","백로·물새류","아시아코끼리(지역 보호구역)"],"clothing":{"traditional":"롱지는 허리에 둘러 입는 긴 천으로 남녀 모두 착용합니다. 얇은 면 소재는 덥고 습한 날씨에 통풍이 잘되고 움직이기 편합니다.","modern":"연중 더워 얇고 통풍되는 옷을 입으며, 몬순 우기에는 우산·우비·방수 신발을 준비합니다."},"food":"쌀, 생선, 콩, 코코넛과 향신료가 식생활에 널리 쓰이며 우기에 풍부한 물은 벼농사와 연결됩니다.","housing":"폭우와 침수에 대비해 지붕 경사를 크게 하고 배수·통풍을 중요하게 생각합니다. 전통 농촌 가옥에는 바닥을 높이는 방식도 나타납니다.","festival":{"name":"띤잔 물축제","text":"미얀마의 새해를 맞는 전통 물축제입니다. 문화적 의미가 중심이지만 가장 더운 계절에 열립니다.","question":"덥고 건조한 계절 끝무렵에 물을 뿌리는 축제를 즐기면 사람들은 날씨를 어떻게 느낄까요?"},"crops":["벼","콩류","참깨","코코넛"],"cropQuestion":"몬순 우기에 비가 집중되는 양곤에서 벼농사는 물과 어떤 관련이 있을까요? 콩·참깨·코코넛 같은 작물은 지역 식생활에 어떻게 더해질까요?"},"리마":{"plants":["로마스(안개 초원) 식생","틸란드시아","건조 관목"],"animals":["훔볼트펭귄(해안)","바다사자","펠리컨·가마우지"],"clothing":{"traditional":"리마를 대표하는 하나의 '기후형 전통의상'은 뚜렷하지 않습니다. 해안 지역의 역사적 일상복에서는 면·린넨처럼 가벼운 소재가 유용했고, 서늘한 안개철에는 숄이나 겉옷을 더했습니다.","modern":"비는 적지만 겨울철 가루아 안개와 습기로 서늘하게 느껴져 얇은 재킷을 입고, 여름에는 가벼운 옷과 자외선 차단을 중시합니다."},"food":"차가운 훔볼트 해류가 지나는 바다에서 얻는 생선과 해산물이 풍부해 세비체 같은 음식이 유명합니다.","housing":"강수량이 매우 적어 전통적으로 급경사 지붕의 필요가 적었고, 현대에는 지진에 견디는 구조가 특히 중요합니다.","crops":["옥수수","아보카도","포도","아스파라거스"],"cropQuestion":"비가 거의 내리지 않는 리마에서 옥수수·아보카도·포도·채소를 재배하려면 물을 어디에서 얻어야 할까요? 사막 기후 속 농업은 사람들의 식생활에 어떤 영향을 줄까요?"},"케이프타운":{"plants":["핀보스","프로테아","포도나무"],"animals":["아프리카펭귄","바분","바위너구리"],"clothing":{"traditional":"케이프타운은 여러 문화가 공존해 하나의 전통의상으로 대표하기 어렵습니다. 남아프리카 여러 공동체의 복식은 문화적 의미가 크며, 서늘한 계절에는 숄·담요 같은 보온층을 활용합니다.","modern":"여름에는 가볍고 햇빛을 막는 옷, 겨울에는 비와 강한 바람을 막는 재킷을 준비합니다."},"food":"주변 지중해성 기후 지역에서 포도 재배가 발달해 와인 문화가 유명하고 해안 도시라 해산물도 풍부합니다.","housing":"여름 햇빛을 줄이는 차양과 겨울비를 흘려보내는 지붕·배수 구조가 중요합니다.","festival":{"name":"서부 케이프의 포도 수확 행사","text":"케이프타운 주변 와인 산지에서는 포도 수확철에 다양한 지역 행사가 열립니다.","question":"건조한 여름과 온화한 겨울을 가진 지중해성 기후가 포도 재배에 어떤 도움을 줄까요?"},"crops":["포도","올리브","밀","감귤류"],"cropQuestion":"여름은 건조하고 겨울에 비가 오는 케이프타운 주변에서 포도·올리브·밀·감귤류는 계절에 따라 어떻게 자랄까요? 수확한 작물은 지역 음식과 음료에 어떻게 이어질까요?"},"밴쿠버":{"plants":["서부적삼나무","더글러스전나무","양치식물"],"animals":["흑곰","대머리수리","연어"],"clothing":{"traditional":"코스트살리시 여러 공동체에서는 삼나무 껍질 섬유나 산양털로 만든 망토·담요 등을 사용했습니다. 서늘하고 습한 해안 환경에서 몸을 감싸는 데 유용했습니다.","modern":"겨울이 아주 혹독하지는 않지만 비가 잦아 방수 재킷과 방수 신발을 자주 사용하고, 얇은 옷을 겹쳐 입습니다."},"food":"강과 바다의 연어·해산물이 중요하고, 습윤한 해양성 기후는 주변 숲과 농업에도 영향을 줍니다.","housing":"비가 많은 지역이라 지붕·외벽의 방수와 배수, 습기 관리가 중요합니다.","festival":{"name":"밴쿠버 벚꽃 축제","text":"봄이 되면 도시 곳곳의 벚꽃을 즐기는 행사가 열립니다.","question":"겨울이 비교적 온화한 해양성 기후는 봄철 꽃이 피는 시기와 도시의 정원 문화에 어떤 영향을 줄까요?"},"crops":["블루베리","크랜베리","사과","감자·채소"],"cropQuestion":"겨울이 비교적 온화하고 비가 많은 밴쿠버 주변에서는 블루베리·크랜베리·사과·채소가 자라기에 어떤 점이 유리할까요? 이런 작물은 지역 식생활에 어떻게 활용될까요?"},"이르쿠츠크":{"plants":["낙엽송","소나무","자작나무"],"animals":["검은담비","불곰","바이칼물범(바이칼호)"],"clothing":"겨울에는 영하 20℃ 안팎까지 내려가므로 모피·두꺼운 방한복과 방한화가 중요합니다.","food":"짧은 여름에 얻은 감자·양배추·베리와 저장식품, 바이칼호의 생선이 식생활과 연결됩니다.","housing":"강한 난방과 두꺼운 단열, 이중창이 필수적이며 눈과 얼음에 견디는 구조가 중요합니다.","festival":{"name":"바이칼 겨울 행사","text":"겨울에 얼어붙는 바이칼호 주변에서는 얼음 위 체험과 겨울 스포츠 행사가 열립니다.","question":"호수가 오랫동안 얼어붙는 혹한의 기후가 겨울 관광과 활동에 어떤 새로운 공간을 만들어 줄까요?"}},"누크":{"plants":["이끼","지의류","난쟁이버드나무"],"animals":["순록","북극여우","물개·고래"],"clothing":"여름도 선선하고 겨울은 매우 추워 방풍·방수 기능이 있는 보온 의류가 중요합니다.","food":"농사가 어려워 전통적으로 생선·물개·고래·순록처럼 바다와 툰드라에서 얻는 식재료가 중요했습니다.","housing":"추위를 막기 위한 단열과 난방이 중요하고, 강풍·눈을 고려해 집을 짓습니다.","festival":{"name":"눈·얼음 문화 행사","text":"그린란드의 도시에서는 눈과 얼음을 활용한 겨울 활동과 행사가 열리기도 합니다.","question":"큰 나무가 거의 자라지 않고 겨울이 긴 환경에서는 사람들이 놀이·이동·집짓기 재료를 어떻게 선택하게 될까요?"}},"라스베이거스":{"plants":["크레오소트 관목","조슈아트리(주변 사막)","선인장류"],"animals":["사막큰뿔양","사막거북","코요테"],"clothing":"여름 햇빛과 더위가 매우 강해 얇고 통풍되는 옷, 모자, 자외선 차단이 중요합니다.","food":"도시 음식은 외부 공급에 크게 의존하지만 사막에서는 물 절약형 조경과 재배 방식이 중요합니다.","housing":"강한 냉방과 그늘, 단열, 물 절약 설비가 필수적이며 건물 주변에도 물을 적게 쓰는 조경을 많이 사용합니다."},"아디스아바바":{"plants":["유칼립투스","고산 초원","에티오피아향나무"],"animals":["젤라다개코원숭이(고원)","하이에나","고산 조류"],"clothing":"적도 가까이 있지만 고도가 높아 아침저녁은 선선해 얇은 옷을 여러 겹 입는 것이 편리합니다. 우기에는 우비가 필요합니다.","food":"고원에서 잘 자라는 테프가 주식 인제라의 재료가 되며 커피와 콩류도 식생활에서 중요합니다.","housing":"우기에는 강한 비가 내리므로 지붕과 배수가 중요하고 고지대의 서늘함을 고려해 보온도 필요합니다.","festival":{"name":"고원의 수확·종교 행사","text":"지역 축제의 중심은 종교와 역사이지만 농사와 계절 변화도 생활 리듬에 영향을 줍니다.","question":"여름 우기와 겨울 건기가 뚜렷한 지역에서 농사 일정은 축제·시장·먹거리와 어떻게 연결될 수 있을까요?"}},"바르셀로나":{"plants":["올리브","알레포소나무","로즈마리·지중해 관목"],"animals":["멧돼지(도시 주변 산지)","도마뱀류","갈매기"],"clothing":{"traditional":"카탈루냐 전통복식에는 면·린넨 옷과 에스파드리유 같은 가벼운 신발이 나타납니다. 따뜻하고 건조한 계절에 통풍이 좋고 활동하기 편합니다.","modern":"여름에는 얇은 옷과 모자·선글라스를 사용하고, 가을과 겨울에는 비와 서늘한 날씨에 대비해 가벼운 겉옷을 더합니다."},"food":"올리브유, 포도, 토마토, 허브와 지중해 해산물을 활용한 음식이 발달했습니다.","housing":"덧문·발코니·차양은 강한 여름 햇빛을 줄이는 데 도움이 되고 타일 지붕은 비를 흘려보내는 데 유리합니다.","festival":{"name":"카탈루냐 포도 수확 행사","text":"바르셀로나 주변 카탈루냐의 포도 산지에서는 가을 수확철에 와인·포도 관련 행사를 볼 수 있습니다.","question":"여름이 건조한 지중해성 기후가 포도의 생장과 수확 시기에 어떤 영향을 줄지 생각해 봅시다."},"crops":["올리브","포도","토마토","아몬드"],"cropQuestion":"덥고 건조한 여름을 가진 바르셀로나 주변에서 올리브·포도·아몬드는 물 부족을 어떻게 견딜 수 있을까요? 관개가 가능해지면 재배할 수 있는 작물은 어떻게 달라질까요?"},"로바니에미":{"plants":["가문비나무","소나무","자작나무"],"animals":["순록","무스","뇌조"],"clothing":"겨울에는 두꺼운 방한복·방수 부츠·장갑이 필요하고 여름에도 밤에는 선선해 겹쳐 입기가 유용합니다.","food":"순록고기, 생선, 베리·버섯처럼 북방 숲과 호수에서 얻는 식재료가 식생활과 연결됩니다.","housing":"긴 겨울을 견디기 위해 단열·난방이 중요하고 눈이 쌓이는 것을 고려한 지붕과 출입구가 필요합니다.","festival":{"name":"겨울·크리스마스 관광 문화","text":"로바니에미는 눈이 오래 남는 긴 겨울을 활용한 겨울 관광으로 잘 알려져 있습니다.","question":"긴 겨울과 눈 덮인 자연환경은 관광도시의 이미지와 일자리, 생활 방식에 어떤 영향을 줄까요?"}},"시드니":{"plants":["유칼립투스","뱅크시아","도시 주변의 상록수·관목"],"animals":["쿠카부라","무지개진홍앵무","포섬"],"clothing":{"traditional":"시드니 지역 원주민 공동체의 전통복식은 공동체와 계절에 따라 다양했습니다. 따뜻한 계절에는 가벼운 차림을 하고, 서늘한 날에는 동물가죽 망토 등을 활용한 사례가 있습니다.","modern":"여름에는 가볍고 통풍되는 옷과 모자·자외선 차단이 중요하고, 겨울에는 비교적 온화해 얇은 겉옷을 겹쳐 입습니다."},"food":"항구도시라 해산물을 쉽게 접할 수 있고, 주변 뉴사우스웨일스 지역에서는 다양한 과일·채소와 포도 등이 생산됩니다.","housing":"따뜻한 계절의 햇빛을 줄이는 차양과 베란다, 통풍을 돕는 구조가 유용하며 비에 대비한 배수도 중요합니다.","crops":["감귤류","포도","채소류","핵과류"],"cropQuestion":"온난한 기후와 비교적 충분한 비는 감귤류·포도·채소·과일 재배에 어떤 영향을 줄까요? 이런 다양한 농산물은 시드니 주변의 식생활과 어떻게 연결될까요?"},"암스테르담":{"plants":["너도밤나무","참나무","갈대·습지 식생"],"animals":["청둥오리","왜가리","유럽토끼"],"clothing":{"traditional":"네덜란드의 전통복식은 지역마다 다르며, 북홀란트의 볼렌담 등에서는 여러 겹의 옷과 앞치마·모자, 나무신을 볼 수 있습니다. 특히 나무신은 젖고 진흙이 많은 농촌 환경에서 발을 보호하는 실용적인 작업화로도 쓰였습니다. 전통복식은 기후뿐 아니라 지역의 역사와 문화의 영향도 큽니다.","modern":"서늘하고 비·바람이 자주 나타나므로 얇은 옷을 겹쳐 입고 방수 재킷이나 바람막이를 자주 활용합니다. 자전거를 많이 이용해 우비·방수 가방처럼 비 오는 날 이동에 편리한 물품도 흔합니다."},"food":"감자, 유제품, 청어, 빵과 같은 재료가 널리 쓰입니다. 주변의 초지와 농경지, 북해와 가까운 환경이 식재료 선택에 영향을 주었습니다.","housing":"운하를 따라 좁고 높은 벽돌집이 발달했으며, 경사진 지붕과 튼튼한 창호·배수 시설은 비가 잦고 습한 환경을 견디는 데 도움이 됩니다. 다만 좁고 높은 형태에는 토지·세금·도시 역사 같은 요인도 함께 작용했습니다.","festival":{"name":"국왕의 날(Koningsdag)","text":"매년 봄에 열리는 네덜란드의 대표적인 국가 축제로, 거리와 운하에서 야외 행사가 활발합니다. 축제의 기원은 역사·왕실 문화와 관련이 있으며 기후가 원인은 아닙니다.","question":"봄철의 비교적 온화한 날씨는 거리·운하에서 야외 행사를 즐기는 데 어떤 영향을 줄까요? 축제의 '기원'과 '열리는 계절의 편리함'을 구분해 생각해 보세요."},"crops":["감자","밀","사탕무","튤립"],"cropQuestion":"여름이 비교적 선선하고 비가 한 해 동안 고르게 오는 기후는 감자·밀·사탕무·튤립 재배에 어떤 도움이 될까요? 또 넓은 초지와 습윤한 환경은 우유·치즈 같은 유제품이 발달하는 데 어떤 조건을 제공했을까요?"}};
+const WORKSHEET_INFO = {"싱가포르":{"housing":{"traditional":"말레이계 캄퐁 가옥이나 오래된 숍하우스에서는 바닥을 높이거나 깊은 처마·아케이드와 통풍 구조를 활용한 사례를 볼 수 있습니다.","modern":"고층 공동주택과 상업 건물에서는 차양·통풍·냉방을 활용하고, 갑작스러운 폭우에 대비해 배수 시설을 중요하게 설계합니다."},"sights":[["싱가포르 식물원","열대 식생과 도시의 식물 연구·공원 역사를 함께 살펴보세요."],["가든스 바이 더 베이","열대 도시에서 식물과 현대적인 환경 설계를 어떻게 활용했는지 생각해 보세요."]]},"나이로비":{"housing":{"traditional":"케냐 여러 공동체의 전통가옥은 지역 재료를 사용합니다. 사바나 주변의 흙·나무·풀을 이용한 집은 강한 햇빛과 큰 일교차를 견디는 생활과 연결해 볼 수 있습니다.","modern":"현대 주택은 콘크리트·벽돌을 많이 사용하고, 고지대의 선선한 아침저녁과 우기의 비에 대비해 환기와 지붕·배수를 함께 고려합니다."},"sights":[["나이로비 국립공원","대도시 바로 옆에 사바나와 야생동물이 남아 있는 까닭을 자연환경과 연결해 보세요."],["카렌 블릭센 박물관","케냐의 식민지 시대와 농장 역사를 조사해 보세요."]]},"뭄바이":{"housing":{"traditional":"오래된 주거와 건축에서는 높은 천장·베란다·깊은 처마처럼 더위와 몬순 비를 줄이려는 요소를 찾을 수 있습니다.","modern":"현대 아파트는 선풍기·냉방과 환기를 활용하고, 몬순 폭우와 침수에 대비해 방수·배수 설비가 중요합니다."},"sights":[["인도문","항구도시 뭄바이의 역사와 바다를 통한 교류를 함께 살펴보세요."],["차트라파티 시바지 마하라지 터미너스","철도 발달과 식민지 시대의 도시 성장과 어떤 관련이 있는지 찾아보세요."]]},"푸껫":{"housing":{"traditional":"태국 남부의 목조·고상식 가옥과 푸껫 구시가지의 숍하우스에서는 통풍, 그늘, 많은 비에 대응하는 지붕과 공간 구성을 볼 수 있습니다.","modern":"현대 주택과 리조트는 큰 비와 습기에 대비한 배수·방수, 통풍·냉방을 중요하게 사용합니다."},"sights":[["푸껫 올드타운","주석 무역과 여러 문화가 섞인 도시 역사를 건축물에서 찾아보세요."],["프롬텝 곶","해안 지형과 바다가 관광 명소가 된 까닭을 생각해 보세요."]]},"울란바토르":{"housing":{"traditional":"몽골의 게르는 나무 골격에 펠트 천을 두르고 둥글게 만들어 바람을 견디고 보온하기 좋으며 이동도 쉽습니다.","modern":"울란바토르의 현대 아파트는 긴 혹한을 견디기 위해 강한 난방·단열·이중창이 중요합니다."},"sights":[["간단 사원","몽골 불교와 울란바토르의 역사를 살펴보세요."],["칭기즈 칸 국립박물관","유목문화와 몽골의 역사적 변화가 도시와 어떻게 이어지는지 찾아보세요."]]},"마라케시":{"housing":{"traditional":"리야드는 집 안쪽에 안뜰을 두고 두꺼운 벽과 작은 바깥 창을 사용해 강한 햇빛과 건조한 더위를 줄이는 전통 주거입니다.","modern":"현대 건물은 차양·단열·냉방을 사용하고, 물이 귀한 환경을 고려한 정원과 물 사용 방식이 중요합니다."},"sights":[["제마 엘프나 광장","시장과 교역, 전통 공연이 도시 역사와 어떻게 연결되는지 살펴보세요."],["바히아 궁전과 리야드 건축","건조한 기후에서 안뜰·그늘·두꺼운 벽이 어떤 역할을 하는지 관찰해 보세요."]]},"카이로":{"housing":{"traditional":"이집트의 전통 흙벽돌·석조 주택과 안뜰집에서는 두꺼운 벽, 그늘, 마슈라비야 같은 창 구조로 뜨거운 햇빛을 줄이고 바람을 이용했습니다.","modern":"현대 주택은 냉방·차양·단열을 활용하고, 물 절약과 강한 햇빛을 줄이는 설계가 중요합니다."},"sights":[["기자 피라미드","나일강 주변에서 발달한 고대 이집트 문명과 연결해 살펴보세요."],["카이로 성채","카이로의 이슬람 시대 역사와 도시 방어의 의미를 조사해 보세요."]]},"두바이":{"housing":{"traditional":"알 파히디 지역의 전통 주택에는 안뜰과 바람탑(바르질)이 있어 뜨거운 공기를 빼고 바람을 끌어들이는 데 도움을 주었습니다.","modern":"현대 초고층 건물은 강한 냉방·단열유리·차양을 활용하며, 사막 도시이므로 물과 에너지를 효율적으로 쓰는 설계가 중요합니다."},"sights":[["알 파히디 역사 지구","바람탑과 전통 건축이 사막의 더위에 어떻게 대응했는지 살펴보세요."],["부르즈 할리파","사막 환경에서 거대한 현대 도시가 성장한 배경과 기술을 조사해 보세요."]]},"타이베이":{"housing":{"traditional":"대만의 전통 가옥에서는 안뜰과 깊은 처마, 기와지붕 등으로 햇빛과 많은 비를 조절한 사례를 볼 수 있습니다.","modern":"현대 주택은 덥고 습한 여름에 냉방·환기를 사용하고, 태풍과 폭우에 대비해 튼튼한 창과 배수 설비를 갖춥니다."},"sights":[["국립고궁박물원","대만과 중국권의 역사·문화유산을 살펴보세요."],["양명산 국립공원","화산 지형·온천·식생이 도시 주변 자연환경과 어떻게 연결되는지 찾아보세요."]]},"도쿄":{"housing":{"traditional":"전통 목조 주택은 처마·미닫이문·툇마루를 활용해 여름에는 바람이 통하게 하고, 비를 피하도록 설계한 사례가 있습니다.","modern":"현대 주택은 냉난방·단열과 함께 지진·태풍·집중호우에 대비한 구조와 배수 시설을 중요하게 생각합니다."},"sights":[["센소지","도쿄의 오래된 종교·상업 지역이 어떻게 형성되었는지 살펴보세요."],["메이지 신궁과 숲","도심 속 인공 숲이 역사·도시 환경과 어떤 관계가 있는지 생각해 보세요."]]},"뉴욕":{"housing":{"traditional":"벽돌·갈색 사암으로 지은 연립주택과 높은 현관 계단은 도시의 역사적 주거 모습을 보여 줍니다. 추운 겨울을 고려해 벽체와 난방이 중요했습니다.","modern":"현대 건물은 겨울 난방과 여름 냉방을 모두 사용하며, 단열·이중창·폭우 배수와 폭풍 대비가 중요합니다."},"sights":[["자유의 여신상","항구와 이민의 역사가 뉴욕의 성장과 어떻게 연결되는지 살펴보세요."],["센트럴 파크","큰 도시 안에 넓은 녹지를 만든 이유와 계절에 따른 이용 모습을 생각해 보세요."]]},"런던":{"housing":{"traditional":"벽돌 테라스 하우스의 경사진 지붕·굴뚝·벽난로는 비가 잦고 서늘한 날씨와 관련해 살펴볼 수 있습니다.","modern":"현대 주택은 단열·이중창·난방을 강화하고, 잦은 비에 대비한 지붕과 배수 설비를 사용합니다."},"sights":[["런던탑","중세 왕실·방어·도시 역사를 조사해 보세요."],["웨스트민스터와 템스강","강을 중심으로 정치·교통·도시가 발달한 과정을 살펴보세요."]]},"로마":{"housing":{"traditional":"석재·벽돌로 지은 집과 안뜰, 덧문은 여름 햇빛을 줄이고 그늘과 바람을 이용하는 데 도움이 되었습니다.","modern":"현대 주택은 여름 차양·냉방을 활용하고, 가을·겨울의 비에 대비한 지붕과 배수도 중요합니다."},"sights":[["콜로세움","고대 로마의 정치·오락·건축 기술과 연결해 살펴보세요."],["포로 로마노","고대 도시의 생활과 행정 중심지가 어떤 모습이었는지 조사해 보세요."]]},"아테네":{"housing":{"traditional":"그리스의 전통 석조·회벽 주택과 안뜰, 덧문은 강한 여름 햇빛을 줄이고 통풍을 돕는 데 유리했습니다.","modern":"현대 아파트는 발코니·차양과 냉방을 많이 사용하며, 겨울철 비에 대비한 배수도 필요합니다."},"sights":[["아크로폴리스와 파르테논 신전","높은 언덕 지형과 고대 그리스 역사를 함께 살펴보세요."],["고대 아고라","고대 시민 생활과 도시의 중심 공간이 어떤 역할을 했는지 조사해 보세요."]]},"하노이":{"housing":{"traditional":"베트남 북부의 전통 목조 가옥과 기와지붕, 깊은 처마는 여름의 비와 햇빛을 피하고 바람이 통하도록 돕습니다.","modern":"현대의 좁고 높은 주택은 발코니·환기·냉방을 활용하며, 여름 우기의 폭우에 대비한 배수가 중요합니다."},"sights":[["호안끼엠 호수","호수와 도시의 역사·전설·휴식 공간이 어떻게 연결되는지 살펴보세요."],["문묘","베트남의 교육·유교 문화와 하노이 역사를 조사해 보세요."]]},"카트만두":{"housing":{"traditional":"네와르 전통 주택은 벽돌·목재를 사용하고 안뜰과 작은 창을 두어 고지대의 일교차에 대응했으며, 기와지붕은 우기의 비를 흘려보냈습니다.","modern":"현대 주택은 우기 배수와 보온을 고려하고, 지진 위험 때문에 철근콘크리트 구조와 내진 설계가 매우 중요합니다."},"sights":[["카트만두 더르바르 광장","네와르 건축과 왕궁 도시의 역사를 살펴보세요."],["스와얌부나트","언덕 지형과 종교 문화가 도시 경관에 어떤 영향을 주는지 생각해 보세요."]]},"모스크바":{"housing":{"traditional":"러시아의 전통 통나무집 이즈바는 두꺼운 목재 벽과 난로를 사용해 긴 겨울의 추위를 막았습니다.","modern":"현대 아파트는 중앙난방·강한 단열·이중창을 사용하고, 눈과 얼음에 대비한 관리가 중요합니다."},"sights":[["크렘린과 붉은 광장","러시아의 정치·역사 중심지로서 어떤 역할을 했는지 조사해 보세요."],["성 바실리 대성당","모스크바의 종교·건축 역사를 살펴보세요."]]},"오슬로":{"housing":{"traditional":"노르웨이의 목조 주택은 두꺼운 벽과 경사진 지붕을 사용했고, 일부 지역의 잔디 지붕은 단열에 도움을 주었습니다.","modern":"현대 주택은 높은 수준의 단열·삼중창·난방을 사용하고, 눈과 비를 견디는 지붕과 배수 설계를 중요하게 생각합니다."},"sights":[["아케르스후스 요새","오슬로 항구와 중세 도시 방어의 관계를 살펴보세요."],["프람 박물관","노르웨이의 북극 탐험과 추운 자연환경에 도전한 역사를 조사해 보세요."]]},"베이징":{"housing":{"traditional":"사합원은 여러 건물이 안뜰을 둘러싼 구조로, 벽과 마당을 이용해 바람·햇빛을 조절하며 계절 변화에 대응했습니다.","modern":"현대 주택은 겨울 난방과 여름 냉방을 모두 사용하고, 건조한 겨울과 여름 폭우에 대비한 단열·배수 설비가 중요합니다."},"sights":[["자금성","황궁의 배치와 베이징의 역사·정치 중심지 역할을 살펴보세요."],["만리장성(베이징 인근)","산지 지형을 이용한 방어 시설이 왜 이곳에 만들어졌는지 조사해 보세요."]]},"우수아이아":{"housing":{"traditional":"티에라델푸에고 지역에서는 목재와 금속판을 활용한 작고 단단한 집이 많았고, 경사진 지붕과 작은 창은 비·눈·강풍에 대응하는 데 유리했습니다.","modern":"현대 주택도 강한 단열·난방·방풍 창호와 경사진 지붕을 중요하게 사용합니다."},"sights":[["티에라델푸에고 국립공원","산·숲·빙하 지형과 한랭한 기후가 만든 경관을 살펴보세요."],["비글 해협","바다와 항구가 탐험·교통·관광에 어떤 영향을 주었는지 조사해 보세요."]]},"우트키아그빅(배로)":{"housing":{"traditional":"이누피아트의 전통 반지하형 흙·잔디 주거는 땅과 재료의 단열 효과를 이용해 강한 추위와 바람을 줄였습니다.","modern":"현대 건물은 영구동토가 녹는 것을 줄이기 위해 지면에서 띄우거나 말뚝 위에 세우고, 매우 강한 단열·난방·방풍 설비를 사용합니다."},"sights":[["이누피아트 헤리티지 센터","북극 환경 속에서 형성된 이누피아트 생활문화와 역사를 살펴보세요."],["북극해 해안","해빙·툰드라·극야와 백야가 사람들의 생활과 관광에 어떤 영향을 주는지 생각해 보세요."]]},"보고타":{"housing":{"traditional":"콜롬비아 고원의 식민지 시대 주택은 벽돌·기와와 안뜰을 사용해 비를 피하고 서늘한 밤의 온도 변화를 줄였습니다.","modern":"현대 주택은 잦은 비에 대비한 지붕·배수와 고지대의 선선한 날씨에 맞춘 보온·환기를 함께 고려합니다."},"sights":[["몬세라테","높은 산지 지형과 보고타의 고도·도시 경관을 함께 살펴보세요."],["황금박물관","콜롬비아의 원주민 문화와 금 세공 역사를 조사해 보세요."]]},"라파스":{"housing":{"traditional":"안데스 지역의 어도비(흙벽돌) 주택은 두꺼운 벽으로 낮 동안의 열을 저장해 밤의 추위를 줄이는 데 도움을 줍니다.","modern":"현대 주택은 강한 일교차와 자외선에 대비한 단열·창호를 사용하고, 우기의 비에 대비한 배수도 필요합니다."},"sights":[["미 텔레페리코","가파른 고산 도시의 지형이 교통수단 선택에 어떤 영향을 주었는지 살펴보세요."],["달의 계곡","건조한 고산 환경에서 침식으로 만들어진 독특한 지형을 관찰해 보세요."]]},"멕시코시티":{"housing":{"traditional":"고원 지역의 전통 어도비·석조 주택은 두꺼운 벽과 안뜰을 사용해 낮과 밤의 기온 차이를 줄이고 그늘을 만들었습니다.","modern":"현대 주택은 일교차에 대응한 단열과 우기 배수, 강한 햇빛을 줄이는 차양을 중요하게 사용합니다."},"sights":[["소칼로와 템플로 마요르","아스테카 도시와 식민지 시대가 같은 공간에 겹쳐 있는 역사를 살펴보세요."],["차풀테펙 공원·성","고원 도시 속 넓은 녹지와 멕시코 역사를 함께 조사해 보세요."]]},"마나우스":{"housing":{"traditional":"아마존 강변 범람원 공동체의 고상식 주택은 바닥을 높여 우기에 강물이 불어날 때 침수를 피하고 통풍을 돕습니다.","modern":"현대 건물은 강한 습도와 더위에 대비해 환기·냉방을 사용하고, 폭우에 대비한 배수와 방수 설비가 중요합니다."},"sights":[["아마조나스 극장","고무 산업이 번성하던 시기의 마나우스 역사와 도시 성장을 조사해 보세요."],["두 물의 만남","네그루강과 솔리몽이스강이 만나는 자연현상이 관광 자원이 된 까닭을 살펴보세요."]]},"망통":{"housing":{"traditional":"지중해 연안의 석조·회벽 주택은 덧문·차양·테라코타 지붕을 사용해 강한 여름 햇빛을 줄이고 겨울비를 흘려보냈습니다.","modern":"현대 아파트도 발코니·차양으로 여름 햇빛을 줄이고, 겨울의 비와 해풍에 대비한 창호·배수를 사용합니다."},"sights":[["발 라메 식물원","온화한 지중해성 기후가 다양한 식물을 기르는 데 어떤 도움을 주는지 살펴보세요."],["망통 구시가지와 생미셸 대성당","해안 도시의 역사와 경사지형이 도시 모습에 어떤 영향을 주었는지 조사해 보세요."]]},"삿포로":{"housing":{"traditional":"홋카이도 아이누의 치세는 목재·갈대 등을 사용하고 중앙 화덕으로 난방했습니다. 지역 재료를 이용해 추운 계절을 견디는 생활을 보여 줍니다.","modern":"현대 삿포로 주택은 높은 단열·이중창·난방을 사용하며, 많은 눈을 고려한 지붕·제설 공간과 현관 구조가 중요합니다."},"sights":[["홋카이도 개척촌","홋카이도의 옛 건축과 개척 역사를 살펴보세요."],["오도리 공원","도시의 중심 녹지가 겨울 눈축제와 계절별 행사 공간으로 어떻게 이용되는지 생각해 보세요."]]},"하얼빈":{"housing":{"traditional":"중국 동북 지역의 전통 주택에서는 두꺼운 벽과 캉(온돌형 난방 침상)을 사용해 매우 추운 겨울을 견뎠습니다.","modern":"현대 주택은 중앙난방·강한 단열·이중창을 사용하고, 눈·얼음에 대비한 건물 관리가 필수적입니다."},"sights":[["성 소피아 성당","러시아와의 교류가 하얼빈 건축과 도시 역사에 남긴 흔적을 살펴보세요."],["중앙대가","추운 동북 지역의 도시 성장과 국제 교류의 흔적을 건축물에서 찾아보세요."]]},"치앙마이":{"housing":{"traditional":"란나 전통 목조가옥은 바닥을 높이고 큰 경사의 지붕과 넓은 처마를 사용해 우기의 비를 흘려보내고 통풍을 돕습니다.","modern":"현대 주택은 통풍·냉방과 차양을 활용하며, 우기 폭우에 대비한 지붕·배수 설비가 중요합니다."},"sights":[["왓 프라탓 도이수텝","산지 지형과 종교 문화가 치앙마이의 상징 공간에 어떻게 연결되는지 살펴보세요."],["치앙마이 올드타운 성벽·해자","옛 도시의 방어와 역사적 도시 구조를 조사해 보세요."]]},"양곤":{"housing":{"traditional":"미얀마의 전통 목조·대나무 가옥은 바닥을 높이고 경사진 지붕과 넓은 처마를 사용해 몬순 비·습기·홍수에 대응했습니다.","modern":"현대 건물은 강한 비와 침수에 대비한 배수·방수, 더위와 습기에 대응한 환기·냉방이 중요합니다."},"sights":[["쉐다곤 파고다","미얀마의 불교 문화와 양곤의 역사적 상징성을 살펴보세요."],["양곤 구도심","식민지 시대 건축과 항구도시의 성장 역사를 조사해 보세요."]]},"리마":{"housing":{"traditional":"비가 매우 적은 리마의 전통 어도비 주택은 평평하거나 완만한 지붕과 안뜰을 사용했으며, 두꺼운 흙벽은 낮과 밤의 온도 변화를 줄이는 데 도움이 됩니다.","modern":"현대 건물도 강수량이 적어 완만한 지붕이 흔하지만, 해안의 습기와 지진 위험에 대비한 환기·내진 구조가 특히 중요합니다."},"sights":[["리마 역사 지구","식민지 시대의 광장·교회·주택에서 도시 역사를 살펴보세요."],["우아카 푸클라나","건조한 해안 환경 속에서 남아 있는 고대 어도비 유적과 선주민 역사를 조사해 보세요."]]},"케이프타운":{"housing":{"traditional":"케이프 더치 주택은 두꺼운 벽·초가지붕·박공을 사용했습니다. 벽은 여름 열기를 줄이고, 지붕은 겨울비를 흘려보내는 데 도움이 됩니다.","modern":"현대 주택은 여름 차양·통풍, 겨울비 배수, 강한 바람에 견디는 창호와 지붕을 중요하게 사용합니다."},"sights":[["테이블 마운틴","산지 지형과 독특한 핀보스 식생이 도시의 자연환경과 어떻게 연결되는지 살펴보세요."],["로벤섬","남아프리카공화국의 인종차별 정책과 민주화 역사를 조사해 보세요."]]},"밴쿠버":{"housing":{"traditional":"코스트살리시 공동체의 전통 플랭크하우스는 주변의 거대한 삼나무를 건축 재료로 활용한 대표 사례입니다.","modern":"현대 주택은 잦은 비에 대비한 방수·배수와 레인스크린 외벽, 겨울 보온을 위한 단열·이중창을 중요하게 사용합니다."},"sights":[["스탠리 파크","온대우림·해안 자연환경이 대도시의 공원으로 어떻게 보전되었는지 살펴보세요."],["UBC 인류학박물관","북서부 원주민 문화와 주변 자연에서 얻은 재료가 예술·생활에 어떻게 쓰였는지 조사해 보세요."]]},"바르셀로나":{"housing":{"traditional":"카탈루냐의 석조·벽돌 주택은 덧문·발코니·안뜰과 기와지붕을 사용해 여름 햇빛을 줄이고 겨울비를 흘려보냈습니다.","modern":"현대 아파트도 발코니·차양으로 강한 햇빛을 줄이고, 여름 통풍·냉방과 겨울비 배수를 함께 고려합니다."},"sights":[["사그라다 파밀리아","바르셀로나의 근현대 건축·종교·도시 역사를 살펴보세요."],["구엘 공원","언덕 지형과 건축·정원이 어떻게 결합되었는지 조사해 보세요."]]},"시드니":{"housing":{"traditional":"시드니 지역의 원주민 공동체는 계절과 장소에 따라 나뭇가지·나무껍질 등 주변 재료로 임시 거처를 만들었으며, 이후 식민지 시대 주택에는 넓은 베란다가 많이 사용되었습니다.","modern":"현대 주택은 여름 햇빛을 줄이는 차양·베란다, 자연통풍과 냉방을 활용하고 비와 강풍에 대비한 지붕·배수를 중요하게 생각합니다."},"sights":[["시드니 오페라하우스","항구 지형과 현대 도시의 문화적 상징이 어떻게 결합되었는지 살펴보세요."],["시드니 하버브리지","넓은 항구가 도시 교통과 성장에 어떤 영향을 주었는지 조사해 보세요."]]},"암스테르담":{"housing":{"traditional":"운하 주변의 전통 벽돌 주택은 비와 습기에 견디는 재료를 사용하고 경사진 지붕으로 빗물을 흘려보냈습니다. 운하와 낮은 지대라는 환경 때문에 물 관리와 튼튼한 기초도 중요했습니다. 좁고 높은 집의 형태에는 도시 토지 이용과 역사적 요인도 함께 작용했습니다.","modern":"현대 주거는 단열·이중창과 방수·배수 성능을 높이고, 저지대의 물 문제에 대응해 수변 주택이나 부유식 주택 같은 새로운 방식도 시도합니다."},"sights":[["암스테르담 운하 지구","낮은 땅과 많은 물길을 관리하며 도시가 성장한 과정, 그리고 운하가 교통·주거·도시 경관에 어떤 영향을 주었는지 살펴보세요."],["국립미술관(Rijksmuseum)","네덜란드의 해상 교역과 도시 성장, 예술의 역사를 작품과 건축을 통해 조사해 보세요."]]}};
+const GROUP_INFO = {"열대기후": {"emoji": "🌴", "title": "열대기후", "summary": "1년 내내 기온이 높은 기후로, 가장 추운 달의 평균기온이 18℃ 이상인 지역입니다. 주로 적도 부근에 나타납니다.", "points": ["1년 내내 기온이 높습니다.", "가장 추운 달의 평균기온이 18℃ 이상입니다.", "주로 적도 부근에 분포합니다.", "강수량과 비가 오는 계절에 따라 열대우림(Af), 열대몬순(Am), 사바나(Aw)로 나눌 수 있습니다."], "subtypes": [{"name": "열대우림(Af)", "text": "1년 내내 비가 많이 내리고 울창한 열대우림이 나타납니다."}, {"name": "열대몬순(Am)", "text": "계절에 따라 강수량 차이가 크고, 비가 많이 오는 시기에 강수량이 집중됩니다."}, {"name": "사바나(Aw)", "text": "비가 많이 오는 우기와 비가 적은 건기가 뚜렷하며 넓은 초원이 나타납니다."}], "question": "같은 열대기후인데도 열대우림, 몬순, 사바나의 자연환경이 다른 가장 큰 이유는 무엇일까요?", "lifeOverview": {"intro": "열대기후 지역의 생활 모습은 높은 기온과 많은 비, 그리고 지역별 강수량 차이와 관련이 있습니다. 활동지에서는 다음과 같은 모습을 대표 사례로 소개합니다.", "items": [{"title": "🌴 열대 작물 재배와 수출", "text": "따뜻한 기후를 이용해 다양한 열대 작물을 재배하고 다른 지역으로 수출하기도 합니다."}, {"title": "🔥 화전농업", "text": "열대우림 지역에서는 울창한 숲 때문에 일반적인 농업이 어려워, 전통적으로 숲의 일부를 태워 밭을 만드는 화전농업이 이루어지기도 했습니다."}, {"title": "🏠 고상 가옥·수상 가옥", "text": "활동지에서는 열대 지역의 전통적인 생활 모습으로 바닥을 높인 고상 가옥과 물 위에 지은 수상 가옥을 소개합니다. 비가 많이 내리는 환경과 어떤 관련이 있을지 생각해 볼 수 있습니다."}, {"title": "🧳 관광 산업", "text": "열대우림, 해변 등 독특한 자연환경을 바탕으로 관광 산업이 발달한 지역도 있습니다."}], "question": "열대기후의 높은 기온과 많은 비는 농업, 집의 모습, 관광에 각각 어떤 영향을 주었을까요?"}}, "건조기후": {"emoji": "🏜️", "title": "건조기후", "summary": "기온보다 물의 부족이 중요한 기후입니다. 강수량보다 증발량이 많아 매우 건조하고 물이 부족합니다.", "points": ["기온만으로 구분하지 않습니다.", "강수량보다 증발량이 많아 매우 건조하고 물이 부족합니다.", "연평균 강수량이 대체로 적습니다.", "강수량의 차이에 따라 사막(BW)과 스텝(BS)으로 나눌 수 있습니다."], "subtypes": [{"name": "사막(BW)", "text": "연평균 강수량이 250mm 미만인 지역이 많고, 물이 부족해 식물이 거의 자라지 못합니다."}, {"name": "스텝(BS)", "text": "사막보다 비가 조금 더 내려 짧은 풀이 자라는 초원이 나타나며, 사막 주변에 분포하는 경우가 많습니다."}], "question": "비가 적은 지역에서는 식물의 모습과 사람들의 물 이용 방법이 어떻게 달라질까요?", "lifeOverview": {"intro": "건조기후 지역에서는 물이 부족하기 때문에 물을 구하는 방법, 집의 재료와 구조, 옷차림, 이동 방식이 자연환경과 밀접하게 연결됩니다.", "items": [{"title": "🏠 흙집", "text": "사막 지역에서는 주변에서 구하기 쉬운 진흙을 이용해 집을 짓기도 합니다."}, {"title": "🌴 오아시스와 하천 주변 농업", "text": "물이 있는 오아시스나 하천 주변에서는 대추야자, 밀 등을 재배하기도 합니다."}, {"title": "🧕 햇빛과 모래바람을 막는 옷", "text": "강한 햇볕과 모래바람을 피하기 위해 몸을 감싸는 형태의 옷을 입는 생활 모습이 나타납니다."}, {"title": "🐑 유목과 천막집", "text": "스텝 지역에서는 물과 풀을 찾아 이동하며 소·양·말 등의 가축을 기르고, 이동하기 쉬운 천막집인 게르를 이용하기도 합니다."}], "question": "물이 부족한 환경이 농사, 집의 재료, 옷차림, 이동 생활에 각각 어떤 영향을 주었을까요?"}}, "온대기후": {"emoji": "🌿", "title": "온대기후", "summary": "가장 추운 달의 평균기온이 -3℃ 이상 18℃ 미만인 지역으로, 기온과 날씨의 변화가 커 사계절이 뚜렷한 경우가 많습니다.", "points": ["가장 추운 달의 평균기온이 -3℃ 이상 18℃ 미만입니다.", "기온과 날씨의 계절 변화가 큰 편입니다.", "사계절이 뚜렷한 경우가 많습니다.", "비가 오는 계절과 여름 기온 등에 따라 여러 기후로 세분됩니다."], "subtypes": [{"name": "온난습윤(Cfa)", "text": "여름이 덥고 습하며, 1년 동안 비교적 고르게 비가 내리는 편입니다."}, {"name": "서안해양성(Cfb)", "text": "여름은 비교적 서늘하고 겨울은 온화해 연교차가 작으며, 1년 내내 비교적 고르게 비가 옵니다."}, {"name": "지중해성(Cs)", "text": "여름은 덥고 건조하며, 겨울은 비교적 따뜻하고 비가 자주 옵니다."}, {"name": "온대겨울건조(Cw)", "text": "여름철에 비가 많고 겨울은 상대적으로 건조한 특징이 나타납니다."}], "question": "온대기후의 여러 지역에서 농업과 옷차림이 다양하게 나타나는 이유를 계절 변화와 연결해 생각해 봅시다.", "lifeOverview": {"intro": "온대기후 지역은 계절 변화가 비교적 뚜렷해 다양한 농업과 목축, 여가 생활이 발달하기 좋은 환경입니다.", "items": [{"title": "🌾 다양한 농업", "text": "기온과 강수량이 비교적 적당하고 계절 변화가 있어 여러 종류의 농업이 이루어집니다."}, {"title": "🌷 화훼 농업과 목축", "text": "지역에 따라 꽃을 재배하는 화훼 농업이나 가축을 기르는 목축업이 발달하기도 합니다."}, {"title": "🚴 사계절을 이용한 레저 문화", "text": "사계절의 변화가 뚜렷한 곳에서는 계절에 따라 다양한 야외 활동과 레저 문화가 발달합니다."}, {"title": "🫒 지중해성 농업", "text": "지중해성 기후 지역에서는 여름이 덥고 건조한 특징을 이용해 올리브, 포도, 오렌지 등을 재배하는 농업이 발달합니다."}], "question": "사계절의 변화와 여름·겨울의 기온 차이가 농업과 사람들의 여가 생활에 어떤 영향을 줄까요?"}}, "냉대기후": {"emoji": "❄️", "title": "냉대기후", "summary": "겨울이 길고 매우 추우며 여름은 짧은 기후입니다. 온대기후보다 연교차가 크고, 북반구의 중위도~고위도 지역에 넓게 분포합니다.", "points": ["가장 추운 달의 평균기온이 -3℃ 이하이고, 가장 더운 달은 10℃ 이상인 기후입니다.", "사계절이 나타나지만 온대기후보다 여름이 짧고 겨울이 훨씬 춥습니다.", "여름과 겨울의 기온 차이인 연교차가 큽니다.", "추위에 강한 침엽수림인 타이가가 넓게 나타나는 곳이 많습니다."], "subtypes": [{"name": "냉대습윤(Df)", "text": "겨울이 매우 춥고, 비와 눈이 한 해 동안 비교적 고르게 내리는 편입니다."}, {"name": "냉대겨울건조(Dw)", "text": "겨울이 매우 춥고 건조하며, 여름철에 강수량이 많아지는 특징이 나타납니다."}], "question": "긴 겨울과 타이가가 사람들의 집, 옷, 산업에 어떤 영향을 줄 수 있을까요?", "lifeOverview": {"intro": "냉대기후 지역은 겨울이 길고 매우 추워 농사에 불리하지만, 짧은 여름과 넓은 침엽수림을 이용한 생활 모습이 나타납니다.", "items": [{"title": "🥔 추운 지역에서도 재배 가능한 작물", "text": "농사하기 어려운 환경이지만 감자, 옥수수, 밀 등을 재배하기도 합니다."}, {"title": "🌲 타이가와 임업", "text": "곧고 높게 자라는 침엽수림인 타이가가 넓게 분포해 목재를 얻기 좋고, 임업이 발달합니다."}, {"title": "📄 펄프 산업", "text": "풍부한 목재를 이용해 종이의 원료가 되는 펄프 산업이 발달하기도 합니다."}, {"title": "🪵 목재 건축", "text": "주변에서 얻기 쉬운 풍부한 목재를 이용한 건축물이 발달한 지역도 있습니다."}], "question": "긴 겨울과 넓은 타이가가 농업, 산업, 집을 짓는 재료에 어떤 영향을 주었을까요?"}}, "한대기후": {"emoji": "🧊", "title": "한대기후", "summary": "가장 따뜻한 달조차 평균기온이 10℃ 미만인 매우 추운 기후입니다. 강수량도 적어 큰 나무가 자라기 어렵습니다.", "points": ["가장 따뜻한 달의 평균기온이 10℃ 미만입니다.", "1년 내내 매우 춥고 강수량이 적습니다.", "큰 나무가 자라기 어려우며 고위도 극지방에 주로 분포합니다.", "여름에는 백야, 겨울에는 극야 현상이 나타나는 지역이 있습니다."], "subtypes": [{"name": "툰드라(ET)", "text": "짧은 여름에 땅의 겉부분이 잠시 녹아 이끼와 작은 풀 등이 자랍니다."}, {"name": "빙설(EF)", "text": "가장 따뜻한 달의 평균기온도 0℃ 미만이라 땅이 거의 1년 내내 눈과 얼음으로 덮여 있습니다."}], "question": "나무가 자라기 어려운 환경에서는 사람들의 먹거리와 집 짓는 방법이 어떻게 달라질까요?", "lifeOverview": {"intro": "한대기후 지역은 1년 내내 춥고 큰 나무가 자라기 어려워 농사가 쉽지 않습니다. 사람들은 추운 환경과 얼어 있는 땅에 맞춰 생활해 왔습니다.", "items": [{"title": "🎣 전통적인 수렵 생활", "text": "농사가 어렵기 때문에 전통적으로 사냥이나 물고기 잡기와 같은 수렵 생활을 하기도 했습니다."}, {"title": "🏠 바닥을 띄운 고상 가옥", "text": "여름에 얼었던 땅이 녹으면 집이 기울거나 무너질 수 있어, 땅 깊이 기둥을 박고 집 바닥을 띄워 짓는 방식을 이용하기도 합니다."}, {"title": "⛽ 자원 개발", "text": "석유와 천연가스 같은 자원을 개발하는 활동이 이루어지는 지역도 있습니다."}, {"title": "🔬 과학기지", "text": "극지방의 자연환경을 연구하기 위해 과학기지가 세워지기도 합니다."}], "question": "농사가 어렵고 땅이 얼어 있는 환경에서는 먹거리와 집의 구조가 어떻게 달라질까요?"}}, "고산기후": {"emoji": "🏔️", "title": "고산기후", "summary": "높은 산지에서 나타나는 기후입니다. 고도가 높아질수록 기온이 낮아져, 위도가 비슷한 주변 지역보다 서늘한 날씨가 나타납니다.", "points": ["높은 산지에서 나타나는 기후입니다.", "고도가 높을수록 기온이 낮아집니다.", "보통 고도가 100m 높아질 때 기온은 약 0.6℃ 낮아집니다.", "저위도에 위치하더라도 높은 산지에서는 1년 내내 봄처럼 온화하거나 서늘한 날씨가 나타날 수 있습니다."], "subtypes": [], "question": "적도 가까이에 있는 도시도 해발고도가 높으면 왜 선선할 수 있을까요?", "lifeOverview": {"intro": "고산기후 지역에서는 높은 해발고도로 인해 기온이 낮고 자외선이 강합니다. 사람들은 산의 경사와 높은 지대의 환경에 맞춰 생활합니다.", "items": [{"title": "🌄 계단식 밭", "text": "산의 경사를 이용해 계단식 밭을 만들고 감자, 옥수수 등의 작물을 재배합니다."}, {"title": "🧥 피부와 눈을 보호하는 옷차림", "text": "기온이 낮고 자외선이 강하기 때문에 피부와 눈을 보호하는 옷차림이 발달합니다."}, {"title": "🦙 고산 지역에 적응한 가축", "text": "높은 지대에서도 기를 수 있는 특별한 가축을 이용해 생활하기도 합니다."}], "question": "높은 산지의 낮은 기온, 강한 자외선, 가파른 경사는 농사와 옷차림, 가축 이용에 어떤 영향을 줄까요?"}}};
+const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+
+const map = L.map("map", {
+  center:[20, 10],
+  zoom:2,
+  minZoom:2,
+  worldCopyJump:true,
+  zoomControl:true
+});
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 8,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+
+const zeroTempLinePlugin = {
+  id: "zeroTempLine",
+  afterDraw(chart) {
+    const yScale = chart.scales.yTemp;
+    const area = chart.chartArea;
+    if (!yScale || !area) return;
+
+    const y = yScale.getPixelForValue(0);
+    const ctx = chart.ctx;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(71, 85, 105, 0.9)";
+    ctx.moveTo(area.left, y);
+    ctx.lineTo(area.right, y);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(71, 85, 105, 0.95)";
+    ctx.font = "bold 10px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("0℃", area.right - 4, y - 3);
+    ctx.restore();
+  }
+};
+Chart.register(zeroTempLinePlugin);
+
+let selectedCity = null;
+let activeClimate = "전체";
+let chart = null;
+const markers = new Map();
+
+
+function markerIcon(selected=false,recommended=false){
+  return L.divIcon({
+    className:"",
+    html:`<div class="marker-dot ${selected ? "selected" : ""} ${recommended ? "recommended" : ""}">${recommended ? "★" : ""}</div>`,
+    iconSize:recommended?[22,22]:(selected?[23,23]:[18,18]),
+    iconAnchor:recommended?[11,11]:(selected?[11.5,11.5]:[9,9])
+  });
+}
+
+CITIES.forEach(c => {
+  const m = L.marker([c.lat,c.lon],{icon:markerIcon(false,c.recommended)})
+    .addTo(map)
+    .bindTooltip(`${c.recommended ? "★ " : ""}${c.emoji} ${c.city} (${c.country})`,{direction:"top",offset:[0,-8]})
+    .on("click",()=>selectCity(c));
+  markers.set(c.city,m);
+});
+
+function resetTabs(){
+  document.querySelectorAll(".main-tab").forEach(b=>b.classList.toggle("active",b.dataset.main==="climate"));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.toggle("active",p.id==="panel-climate"));
+  document.querySelectorAll(".nature-tab").forEach(b=>b.classList.toggle("active",b.dataset.nature==="plants"));
+  document.querySelectorAll(".life-tab").forEach(b=>b.classList.toggle("active",b.dataset.life==="clothing"));
+}
+
+function switchMainTab(name){
+  document.querySelectorAll(".main-tab").forEach(b=>b.classList.toggle("active",b.dataset.main===name));
+  document.querySelectorAll(".tab-panel").forEach(p=>p.classList.toggle("active",p.id===`panel-${name}`));
+  if(name==="climate" && chart) setTimeout(()=>chart.resize(),30);
+}
+
+function climateInfoFor(c){
+  return CLIMATE_INFO[c.climateShort] || {};
+}
+
+function cityInfoFor(c){
+  return CITY_INFO[c.city] || {};
+}
+
+function worksheetInfoFor(c){
+  return WORKSHEET_INFO[c.city] || {};
+}
+
+function chips(items){
+  return `<div class="chips">${(items||[]).map(x=>`<span class="chip">${x}</span>`).join("")}</div>`;
+}
+
+function weatherSummary(c){
+  const maxT=Math.max(...c.temps), minT=Math.min(...c.temps);
+  const maxTi=c.temps.indexOf(maxT), minTi=c.temps.indexOf(minT);
+  const validPrecs=c.precs.map((v,i)=>({v,i})).filter(x=>x.v!=null);
+  const wet=validPrecs.length?validPrecs.reduce((a,b)=>b.v>a.v?b:a):null;
+  const dry=validPrecs.length?validPrecs.reduce((a,b)=>b.v<a.v?b:a):null;
+  return {
+    warm:`${MONTHS[maxTi]} 약 ${maxT.toFixed(1)}℃`,
+    cold:`${MONTHS[minTi]} 약 ${minT.toFixed(1)}℃`,
+    wet:wet?`${MONTHS[wet.i]} 약 ${wet.v.toFixed(0)}mm`:"자료 없음",
+    dry:dry?`${MONTHS[dry.i]} 약 ${dry.v.toFixed(0)}mm`:"자료 없음"
+  };
+}
+
+function renderClimateWorksheetGuide(c){
+  const w=weatherSummary(c);
+  const range=(Math.max(...c.temps)-Math.min(...c.temps)).toFixed(1);
+  const box=document.getElementById("climateWorksheetGuide");
+  if(!box) return;
+  box.innerHTML=`
+    <div class="worksheet-box">
+      <span class="step-kicker">📄 활동지 1단계</span>
+      <b>그래프에서 근거를 찾아 내 말로 정리해 보세요.</b>
+      <div class="evidence-grid">
+        <div class="evidence-card"><b>🌡️ 가장 따뜻한 때</b><span>${w.warm}</span></div>
+        <div class="evidence-card"><b>🥶 가장 추운 때</b><span>${w.cold}</span></div>
+        <div class="evidence-card"><b>🌧️ 비가 가장 많은 때</b><span>${w.wet}</span></div>
+        <div class="evidence-card"><b>☀️ 비가 가장 적은 때</b><span>${w.dry}</span></div>
+      </div>
+      <div style="font-size:11px;margin-top:7px"><b style="display:inline">기온 연교차</b> 약 ${range}℃ · <b style="display:inline">기후 유형</b> ${c.climate}</div>
+      <div style="margin-top:8px">① 기온 특징 ② 강수량 특징 ③ 핵심 사실 2가지를 활동지에 적고, 마지막에는 <b>“이 도시는 ______하고 ______한 ${c.climateShort} 기후입니다.”</b>처럼 한 문장으로 정리해 보세요.</div>
+    </div>`;
+}
+
+function renderNature(kind){
+  if(!selectedCity) return;
+  const c=selectedCity, ci=climateInfoFor(c), info=cityInfoFor(c);
+  const box=document.getElementById("natureContent");
+
+  if(kind==="plants"){
+    const cropSection=(info.crops&&info.crops.length)?`
+        <div class="plant-subtitle">🌾 사람들이 재배하거나 먹는 작물</div>
+        ${chips(info.crops)}
+        ${info.cropQuestion?`<p class="crop-link"><b>🍽 활동지 식생활과 연결해 생각하기</b><br>${info.cropQuestion}</p>`:""}
+      `:"";
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 활동지 1~2단계 근거 찾기</span>
+        <div class="section-kicker">${c.city}와 주변에서 살펴볼 수 있는 식생과 작물</div>
+        <h3>🌱 자연에서 볼 수 있는 대표 식생</h3>
+        ${chips(info.plants)}
+        <p>${ci.plantWhy || ""}</p>
+        ${cropSection}
+        <div class="worksheet-box green"><b>활동지에 어떻게 쓰지?</b>식생활의 ‘대표 음식·식재료’를 조사할 때 위 작물 중 실제로 지역 음식에 쓰이는 것이 있는지 확인해 보세요. 그다음 <b>왜 이 작물이 이 기후에서 잘 자라는지</b>를 그래프의 기온·강수량과 연결해 생각합니다.</div>
+      </div>`;
+  } else if(kind==="animals"){
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 자연환경 근거 찾기</span>
+        <div class="section-kicker">${c.city}와 주변 자연환경의 대표 동물</div>
+        <h3>🐾 어떤 동물이 살아갈까?</h3>
+        ${chips(info.animals)}
+        <p>${ci.animalWhy || ""}</p>
+        <div class="think-box"><b>🔎 생각해 보기</b>이 동물은 더위·추위·물의 양·식생 중 무엇에 적응한 모습일까요? 활동지 4단계의 ‘자연환경’ 근거로 활용할 수도 있어요.</div>
+      </div>`;
+  } else {
+    const w=weatherSummary(c);
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 활동지 1단계 기후 특징</span>
+        <div class="section-kicker">기후그래프를 날씨 말로 바꾸어 보기</div>
+        <h3>☁️ 이곳의 평균적인 날씨는?</h3>
+        <div class="weather-facts">
+          <div class="weather-fact"><b>가장 따뜻한 때</b><span>${w.warm}</span></div>
+          <div class="weather-fact"><b>가장 추운 때</b><span>${w.cold}</span></div>
+          <div class="weather-fact"><b>비가 가장 많은 때</b><span>${w.wet}</span></div>
+          <div class="weather-fact"><b>비가 가장 적은 때</b><span>${w.dry}</span></div>
+        </div>
+        <p>${ci.weather || ""}</p>
+        <div class="think-box"><b>🔎 활동지 2단계로 이어가기</b>이런 날씨라면 어떤 옷이 편할까요? 집에는 어떤 지붕·창문·바닥·난방·통풍 기능이 필요할까요?</div>
+      </div>`;
+  }
+}
+function renderLife(kind){
+  if(!selectedCity) return;
+  const c=selectedCity, info=cityInfoFor(c), wi=worksheetInfoFor(c);
+  const box=document.getElementById("lifeContent");
+
+  if(kind==="clothing"){
+    const clothing=(info.clothing && typeof info.clothing==="object") ? info.clothing : {traditional:info.clothing||"추가 조사가 필요해요.",modern:"추가 조사가 필요해요."};
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 활동지 2단계 · 옷(의생활)</span>
+        <h3>👕 전통 의상과 현대 의상을 나누어 살펴보기</h3>
+        <div class="clothing-grid">
+          <div class="clothing-card traditional"><b>🧵 전통 의상·옛 의생활</b><p>${clothing.traditional || "추가 조사가 필요해요."}</p></div>
+          <div class="clothing-card modern"><b>👟 현대 의상</b><p>${clothing.modern || "추가 조사가 필요해요."}</p></div>
+        </div>
+        <div class="worksheet-box"><b>활동지 질문과 똑같이 생각해 보기</b>① 어떤 옷을 입나요? → 전통·현대를 각각 한 가지씩 골라 적기<br>② 왜 이런 옷을 입을까요? → <b>더위·추위·비·바람·햇빛</b> 중 어떤 기후 특징과 관련 있는지 설명하기</div>
+      </div>`;
+  } else if(kind==="food"){
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 활동지 2단계 · 음식(식생활)</span>
+        <h3>🍚 대표 음식·식재료 단서</h3>
+        <p class="life-example">${info.food || "자료를 찾아보세요."}</p>
+        ${(info.crops&&info.crops.length)?`<div class="plant-subtitle">🌾 식물 탭에서 본 작물</div>${chips(info.crops)}`:""}
+        ${info.cropQuestion?`<div class="worksheet-box green"><b>② 왜 이런 음식 특징이 나타날까?</b>${info.cropQuestion}</div>`:""}
+        <div class="think-box"><b>✍️ 활동지에 기록할 때</b>① 음식 이름 또는 자주 쓰는 식재료를 먼저 적고 ② 그래프의 기온·강수량, 식물 탭의 작물, 바다·초원·고산 같은 자연환경 중 근거를 골라 이유를 설명해 보세요.</div>
+      </div>`;
+  } else if(kind==="housing"){
+    const h=wi.housing || {traditional:info.housing||"지역의 전통가옥을 추가로 조사해 보세요.",modern:"현대 주거의 기후 대응 방법을 추가로 조사해 보세요."};
+    box.innerHTML=`
+      <div class="info-card">
+        <span class="step-kicker">📄 활동지 2단계 · 집(주생활)</span>
+        <h3>🏡 전통가옥과 현대가옥을 나누어 살펴보기</h3>
+        <div class="housing-grid">
+          <div class="housing-card traditional"><b>🏚️ 전통·지역 가옥 사례</b><p>${h.traditional}</p></div>
+          <div class="housing-card modern"><b>🏢 현대 주거에서 볼 수 있는 기후 대응</b><p>${h.modern}</p></div>
+        </div>
+        <div class="worksheet-box orange"><b>활동지 질문과 연결</b>① 집의 <b>모양·지붕·창문·바닥·재료</b>에서 특징을 골라 적어 보세요.<br>② 그 구조나 재료가 <b>비·눈·더위·추위·바람·습기</b>를 견디거나 주변 재료를 이용하는 데 어떤 도움을 주는지 설명해 보세요.</div>
+      </div>`;
+  }
+}
+
+function renderJourney(){
+  if(!selectedCity) return;
+  const c=selectedCity, info=cityInfoFor(c), wi=worksheetInfoFor(c);
+  const box=document.getElementById("journeyContent");
+  const sights=wi.sights || [];
+  const sightHtml=sights.length ? sights.map((x,i)=>`<div class="sight-card"><b>${i+1}. ${x[0]}</b><p>🔎 조사 힌트: ${x[1]}</p></div>`).join("") : `<div class="sight-card"><b>인터넷에서 볼거리 2곳 찾기</b><p>자연환경 또는 역사를 설명하기 좋은 장소를 골라 보세요.</p></div>`;
+  const f=info.festival;
+  let festivalHtml="";
+  if(f){
+    const src=f.sourceUrl?`<a class="festival-source" href="${f.sourceUrl}" target="_blank" rel="noopener">↗ ${f.sourceTitle || "축제 정보 출처"}</a>`:"";
+    festivalHtml=`<div class="info-card"><span class="step-kicker">🎉 대표 축제 후보</span><h3>${f.name}</h3><p>${f.text}</p>${src}<div class="worksheet-box orange"><b>활동지 3단계 질문</b>${f.question}<br><br>축제 이름·내용을 기록한 뒤, <b>기후나 계절과 관련된 점이 실제로 있는지</b> 스스로 판단해 보세요. 관련이 약하면 억지로 연결하지 않아도 됩니다.</div></div>`;
+  }else{
+    festivalHtml=`<div class="info-card"><span class="step-kicker">🎪 가상 축제 만들기</span><h3>${c.city}다운 축제를 만든다면?</h3><p>대표 축제를 더 조사해도 되고, 활동지의 가상 축제 칸을 활용해도 좋아요.</p>${chips([...(info.plants||[]).slice(0,2),...(info.crops||[]).slice(0,2),...(info.animals||[]).slice(0,1)])}<div class="worksheet-box orange"><b>가상 축제 힌트</b>위 자연환경 요소와 <b>비·눈·더위·건조함·바람</b> 중 하나를 골라 축제 이름, 개최 계절, 체험 활동·음식을 직접 만들어 보세요.</div></div>`;
+  }
+  box.innerHTML=`
+    <div class="info-card">
+      <span class="step-kicker">📄 활동지 3단계 · 볼거리/문화재</span>
+      <h3>📍 여행 책자에 넣을 후보 2곳</h3>
+      <div class="sight-list">${sightHtml}</div>
+      <div class="think-box"><b>🔎 바로 베껴 쓰지 말고 한 번 더 조사!</b>각 장소가 <b>자연환경</b>과 관련 있는지, 아니면 <b>역사·문화</b>와 관련 있는지 확인한 뒤 활동지의 ‘어떤 관련이 있나요?’에 한 문장으로 적어 보세요.</div>
+    </div>
+    ${festivalHtml}`;
+}
+
+function renderConnect(){
+  if(!selectedCity) return;
+  const c=selectedCity, info=cityInfoFor(c);
+  const box=document.getElementById("connectContent");
+  const evidence=[...(info.plants||[]).slice(0,2),...(info.crops||[]).slice(0,2)];
+  box.innerHTML=`
+    <div class="info-card">
+      <span class="step-kicker">📄 활동지 4단계 · 핵심</span>
+      <h3>🔗 기후 → 자연환경 → 생활 모습을 직접 연결해 보기</h3>
+      <p>사이트가 완성 문장을 대신 써 주지는 않아요. 앞에서 찾은 자료를 골라 <b>원인과 결과</b>가 드러나게 연결해 보세요.</p>
+      <div class="connect-grid">
+        <div class="connect-card"><b>1. 기후·자연환경</b><p>${c.climate}<br>${evidence.length?`자료 후보: ${evidence.join(" · ")}`:"기온·강수량과 자연환경에서 근거를 고르세요."}</p></div>
+        <div class="connect-arrow">→</div>
+        <div class="connect-card"><b>2. 어떤 영향?</b><p>덥다 / 춥다 / 비가 많다 / 건조하다 / 눈이 많다 / 바람이 강하다 / 고도가 높다…<br><b>사람들에게 어떤 불편 또는 기회를 만들까?</b></p></div>
+        <div class="connect-arrow">→</div>
+        <div class="connect-card"><b>3. 생활 모습</b><p>의·식·주·축제 중 <b>2가지 이상</b>을 선택하세요.<br>어떻게 적응하거나 자연환경을 이용했는지 설명합니다.</p></div>
+      </div>
+      <div class="sentence-frame"><b>✍️ 활동지 문장 틀</b><br>“이 지역은 __________한 기후이기 때문에 __________한 자연환경이 나타납니다. 그래서 사람들은 __________하며 생활하고, __________을/를 이용하여 환경에 적응했습니다.”</div>
+      <div class="worksheet-box purple"><b>마지막 확인</b>‘유명해서’, ‘원래 그래’가 아니라 <b>기온·강수량·식생·동물·지형</b> 중 근거가 들어갔는지 확인하세요. 문화는 기후만으로 결정되지 않으므로 역사·종교·경제 등의 영향이 큰 사례는 그 점도 함께 적으면 더 정확합니다.</div>
+      <div class="worksheet-box green"><b>➡️ 다음은 활동지 5단계</b>지금까지 조사한 것 중 <b>기후그래프 · 의식주 · 축제 · 볼거리/문화재 · 핵심 연결 문장</b>에서 여행 책자에 넣을 내용을 골라 Canva 구성 계획을 세워 보세요.</div>
+    </div>`;
+}
+function selectCity(c){
+  selectedCity=c;
+  document.getElementById("groupInfoContent").style.display="none";
+  markers.forEach((m,city)=>{
+    const obj=CITIES.find(x=>x.city===city);
+    m.setIcon(markerIcon(city===c.city,obj?.recommended));
+  });
+
+  document.getElementById("empty").style.display="none";
+  document.getElementById("detailContent").style.display="block";
+  document.getElementById("detail").classList.add("open");
+
+  document.getElementById("eyebrow").textContent=`${c.emoji} ${c.climate}`;
+  document.getElementById("cityTitle").textContent=c.city;
+  document.getElementById("country").textContent=c.country;
+  document.getElementById("recommendBadge").style.display=c.recommended?"inline-flex":"none";
+  document.getElementById("annualTemp").textContent=`${c.annualTemp.toFixed(1)}℃`;
+  document.getElementById("annualPrecip").textContent=c.annualPrecip==null?"자료 생략":`${c.annualPrecip.toLocaleString()} mm`;
+
+  const warn=document.getElementById("warn");
+  if(c.note){warn.style.display="block";warn.textContent="분류 참고: "+c.note;}
+  else{warn.style.display="none";}
+
+  const src=document.getElementById("source");
+  src.innerHTML=`자료 기준: ${c.source}${c.sourceUrl?` · <a href="${c.sourceUrl}" target="_blank" rel="noopener">원자료 보기 ↗</a>`:""}`;
+
+  const body=document.getElementById("monthBody");
+  body.innerHTML="";
+  MONTHS.forEach((m,i)=>{
+    const tr=document.createElement("tr");
+    const p=c.precs[i]==null?"—":c.precs[i].toFixed(1);
+    tr.innerHTML=`<td>${m}</td><td>${c.temps[i].toFixed(1)}℃</td><td>${p} mm</td>`;
+    body.appendChild(tr);
+  });
+
+  if(chart) chart.destroy();
+  chart=new Chart(document.getElementById("climateChart"),{
+    data:{labels:MONTHS,datasets:[
+      {type:"bar",label:"강수량(mm)",data:c.precs,yAxisID:"yPrecip",borderWidth:0,borderRadius:4,backgroundColor:"rgba(59,130,246,.48)"},
+      {type:"line",label:"평균기온(℃)",data:c.temps,yAxisID:"yTemp",tension:.28,pointRadius:3,pointHoverRadius:5,borderWidth:2.5,borderColor:"#ef4444",backgroundColor:"#ef4444"}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
+      plugins:{legend:{position:"top",labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},
+      tooltip:{callbacks:{label:(ctx)=>ctx.datasetIndex===0?` 강수량 ${ctx.raw ?? "—"} mm`:` 평균기온 ${ctx.raw}℃`}}},
+      scales:{
+        yPrecip:{position:"left",min:0,max:800,beginAtZero:true,title:{display:true,text:"강수량(mm)",font:{size:10,weight:"bold"}},ticks:{stepSize:100,font:{size:10}},grid:{color:"rgba(148,163,184,.22)"}},
+        yTemp:{position:"right",min:-50,max:40,title:{display:true,text:"기온(℃)",font:{size:10,weight:"bold"}},ticks:{stepSize:10,font:{size:10}},grid:{drawOnChartArea:false}},
+        x:{ticks:{font:{size:9},maxRotation:0,minRotation:0}}
+      }
+    }
+  });
+
+  resetTabs();
+  renderClimateWorksheetGuide(c);
+  renderNature("plants");
+  renderLife("clothing");
+  renderJourney();
+  renderConnect();
+  map.flyTo([c.lat,c.lon],Math.max(map.getZoom(),4),{duration:.65});
+}
+
+
+function climatesForGroup(groupName){
+  const map={
+    "열대기후":["열대우림(Af)","사바나(Aw)","몬순(Am)"],
+    "건조기후":["스텝(BSk/BSh)","사막(BW)"],
+    "온대기후":["온난습윤(Cfa)","서안해양성(Cfb)","지중해성(Cs)","온대겨울건조(Cwa/Cwb)"],
+    "냉대기후":["냉대습윤(Df)","냉대겨울건조(Dw)"],
+    "한대기후":["툰드라(ET)","빙설(EF)"],
+    "고산기후":["고산기후(H)"]
+  };
+  return map[groupName] || [];
+}
+
+function applyGroupFilter(groupName){
+  activeClimate="group:"+groupName;
+  const climates=climatesForGroup(groupName);
+  let visible=0;
+
+  CITIES.forEach(c=>{
+    const m=markers.get(c.city);
+    const show=climates.includes(c.climate);
+    if(show){m.addTo(map);visible++;} else {map.removeLayer(m);}
+  });
+
+  document.getElementById("countPill").textContent=`${groupName} · ${visible}개 도시`;
+
+  document.querySelectorAll(".filter-btn,.direct-group-btn,.group-feature-btn").forEach(
+    b=>b.classList.remove("active")
+  );
+  document.querySelectorAll(".group-btn").forEach(
+    b=>b.classList.toggle("active",b.dataset.group===groupName)
+  );
+}
+
+function showGroupInfo(groupName){
+  const info=GROUP_INFO[groupName];
+  if(!info) return;
+
+  applyGroupFilter(groupName);
+
+  document.getElementById("empty").style.display="none";
+  document.getElementById("detailContent").style.display="none";
+  document.getElementById("groupInfoContent").style.display="block";
+  document.getElementById("detail").classList.add("open");
+
+  document.getElementById("groupTitle").textContent=`${info.emoji} ${info.title}`;
+  document.getElementById("groupSubtitle").textContent="6학년 활동지의 핵심 내용을 정리했어요.";
+
+  const subtypeHtml=(info.subtypes||[]).length
+    ? `<div class="info-card">
+         <div class="section-kicker">세부 기후</div>
+         <h3>어떻게 나뉠까요?</h3>
+         <div class="subtype-list">
+           ${info.subtypes.map(s=>`
+             <div class="subtype-card">
+               <b>${s.name}</b>
+               <span>${s.text}</span>
+             </div>`).join("")}
+         </div>
+       </div>`
+    : "";
+
+  const lifeOverviewHtml=info.lifeOverview
+    ? `<div class="info-card">
+         <div class="section-kicker">사람들의 생활 모습</div>
+         <h3>👣 이 기후에서는 어떻게 살아갈까요?</h3>
+         <p style="font-size:12px;line-height:1.75;color:#344054;margin:6px 0 10px">${info.lifeOverview.intro}</p>
+         <div class="subtype-list">
+           ${info.lifeOverview.items.map(item=>`
+             <div class="subtype-card">
+               <b>${item.title}</b>
+               <span>${item.text}</span>
+             </div>`).join("")}
+         </div>
+         <div class="think-box" style="margin-top:10px"><b>🔎 생활과 연결해 보기</b>${info.lifeOverview.question}</div>
+       </div>`
+    : "";
+
+  document.getElementById("groupInfoBody").innerHTML=`
+    <div class="group-info-hero">
+      <h3>${info.title}란?</h3>
+      <p>${info.summary}</p>
+    </div>
+
+    <div class="info-card">
+      <div class="section-kicker">활동지 핵심 정리</div>
+      <h3>📌 기후의 특징</h3>
+      <ul class="feature-list">
+        ${info.points.map(p=>`<li>${p}</li>`).join("")}
+      </ul>
+    </div>
+
+    ${subtypeHtml}
+    ${lifeOverviewHtml}
+
+    <div class="group-map-note">
+      지도에는 지금 <b>${groupName}</b>에 속하는 도시가 모두 표시되어 있어요.
+      세부 기후 버튼을 누르면 해당 기후의 도시만 다시 볼 수 있습니다.
+    </div>
+
+    <div class="think-box">
+      <b>🔎 생각해 보기</b>${info.question}
+    </div>`;
+
+  document.querySelectorAll(".group-feature-btn").forEach(
+    b=>b.classList.toggle("active",b.dataset.groupInfo===groupName)
+  );
+}
+
+function applyFilter(climate){
+  activeClimate=climate;
+  document.getElementById("groupInfoContent").style.display="none";
+  let visible=0;
+  CITIES.forEach(c=>{
+    const m=markers.get(c.city);
+    const show=climate==="전체" || (climate==="추천" ? c.recommended : c.climate===climate);
+    if(show){m.addTo(map);visible++;} else {map.removeLayer(m);}
+  });
+  document.getElementById("countPill").textContent =
+    climate==="전체"?`전체 ${visible}개 도시`:
+    climate==="추천"?`★ 추천 ${visible}개 도시`:`${climate} · ${visible}개`;
+
+  document.querySelectorAll(".filter-btn,.direct-group-btn").forEach(
+    b=>b.classList.toggle("active",b.dataset.climate===climate)
+  );
+  document.querySelectorAll(".group-btn,.group-feature-btn").forEach(
+    b=>b.classList.remove("active")
+  );
+
+  // 세부 기후를 선택하면 해당 기후대 묶음이 자동으로 펼쳐집니다.
+  const selectedBtn=document.querySelector(`.filter-btn[data-climate="${climate}"]`);
+  if(selectedBtn){
+    const children=selectedBtn.closest(".group-children");
+    if(children){
+      children.classList.add("open");
+      const group=children.previousElementSibling;
+      if(group) group.classList.add("open");
+    }
+  }
+}
+
+function buildFilters(){
+  const box=document.getElementById("filters");
+  box.innerHTML="";
+
+  // 상단 고정 메뉴: 전체 / 가이드북 추천
+  [
+    {key:"전체",emoji:"🌍",label:"전체",count:CITIES.length},
+    {key:"추천",emoji:"★",label:"가이드북 추천",count:CITIES.filter(c=>c.recommended).length}
+  ].forEach(item=>{
+    const b=document.createElement("button");
+    b.className="filter-btn"+(item.key==="전체"?" active":"");
+    b.dataset.climate=item.key;
+    b.innerHTML=`<span class="filter-left"><span>${item.emoji}</span><span>${item.label}</span></span><span class="filter-count">${item.count}</span>`;
+    b.onclick=()=>applyFilter(item.key);
+    box.appendChild(b);
+  });
+
+  const groups=[
+    {label:"열대기후",emoji:"🌴",climates:["열대우림(Af)","사바나(Aw)","몬순(Am)"]},
+    {label:"건조기후",emoji:"🏜️",climates:["스텝(BSk/BSh)","사막(BW)"]},
+    {label:"온대기후",emoji:"🌿",climates:["온난습윤(Cfa)","서안해양성(Cfb)","지중해성(Cs)","온대겨울건조(Cwa/Cwb)"]},
+    {label:"냉대기후",emoji:"❄️",climates:["냉대습윤(Df)","냉대겨울건조(Dw)"]},
+    {label:"한대기후",emoji:"🧊",climates:["툰드라(ET)","빙설(EF)"]},
+    {label:"고산기후",emoji:"🏔️",climates:["고산기후(H)"]}
+  ];
+
+  groups.forEach(g=>{
+    const wrap=document.createElement("div");
+    wrap.className="climate-group";
+
+    const total=g.climates.reduce(
+      (sum,cl)=>sum+CITIES.filter(c=>c.climate===cl).length,0
+    );
+
+    const head=document.createElement("button");
+    head.className="group-btn";
+    head.dataset.group=g.label;
+    head.setAttribute("aria-expanded","false");
+    head.innerHTML=`
+      <span class="group-left"><span>${g.emoji}</span><span>${g.label}</span></span>
+      <span class="group-right">
+        <span class="filter-count">${total}</span>
+        <span class="group-chevron">▼</span>
+      </span>`;
+
+    const children=document.createElement("div");
+    children.className="group-children";
+
+    // 기후대 공통 특징
+    const infoBtn=document.createElement("button");
+    infoBtn.className="group-feature-btn";
+    infoBtn.dataset.groupInfo=g.label;
+    infoBtn.innerHTML=`
+      <span class="filter-left"><span>📘</span><span>${g.label}의 특징</span></span>
+      <span>›</span>`;
+    infoBtn.onclick=(e)=>{
+      e.stopPropagation();
+      showGroupInfo(g.label);
+      children.classList.add("open");
+      head.classList.add("open","active");
+      head.setAttribute("aria-expanded","true");
+    };
+    children.appendChild(infoBtn);
+
+    // 세부 기후
+    // 고산기후는 하위 세부기후가 따로 없으므로 특징 탭만 표시
+    if(g.label!=="고산기후"){
+      g.climates.forEach(cl=>{
+        const count=CITIES.filter(c=>c.climate===cl).length;
+        const example=CITIES.find(c=>c.climate===cl);
+        if(!example) return;
+
+        const b=document.createElement("button");
+        b.className="filter-btn";
+        b.dataset.climate=cl;
+        b.innerHTML=`<span class="filter-left"><span>${example.emoji}</span><span>${cl}</span></span><span class="filter-count">${count}</span>`;
+        b.onclick=(e)=>{
+          e.stopPropagation();
+          applyFilter(cl);
+          children.classList.add("open");
+          head.classList.add("open");
+          head.setAttribute("aria-expanded","true");
+        };
+        children.appendChild(b);
+      });
+    }
+
+    // 상위 기후를 누르면:
+    // 1) 그 기후대 도시 전체 표시
+    // 2) 하위 메뉴 펼치기/접기
+    head.onclick=()=>{
+      applyGroupFilter(g.label);
+      const opening=!children.classList.contains("open");
+      children.classList.toggle("open",opening);
+      head.classList.toggle("open",opening);
+      head.classList.add("active");
+      head.setAttribute("aria-expanded",String(opening));
+    };
+
+    wrap.appendChild(head);
+    wrap.appendChild(children);
+    box.appendChild(wrap);
+  });
+}
+buildFilters();
+
+document.getElementById("countPill").textContent=`전체 ${CITIES.length}개 도시`;
+
+document.querySelectorAll(".main-tab").forEach(b=>b.addEventListener("click",()=>switchMainTab(b.dataset.main)));
+document.querySelectorAll(".nature-tab").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".nature-tab").forEach(x=>x.classList.toggle("active",x===b));
+  renderNature(b.dataset.nature);
+}));
+document.querySelectorAll(".life-tab").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".life-tab").forEach(x=>x.classList.toggle("active",x===b));
+  renderLife(b.dataset.life);
+}));
+
+const search=document.getElementById("search");
+const results=document.getElementById("results");
+
+function searchCities(q){
+  const t=q.trim().toLowerCase();
+  if(!t) return [];
+  return CITIES.filter(c =>
+    c.city.toLowerCase().includes(t) ||
+    c.country.toLowerCase().includes(t) ||
+    c.climate.toLowerCase().includes(t)
+  ).sort((a,b)=>Number(b.recommended)-Number(a.recommended)).slice(0,12);
+}
+
+function renderResults(items){
+  results.innerHTML="";
+  if(!search.value.trim()){results.style.display="none";return;}
+  if(items.length===0){
+    results.innerHTML='<div style="padding:14px;color:#667085;font-size:13px">검색 결과가 없습니다.</div>';
+    results.style.display="block"; return;
+  }
+  items.forEach(c=>{
+    const d=document.createElement("div");
+    d.className="result-item";
+    d.innerHTML=`<div style="font-size:20px">${c.emoji}</div><div><div class="result-main">${c.recommended?'<span class="result-star">★</span>':""}${c.city}</div><div class="result-sub">${c.country} · ${c.climate}</div></div>`;
+    d.onclick=()=>{
+      results.style.display="none"; search.value=c.city;
+      if(activeClimate!=="전체" && !(activeClimate==="추천"&&c.recommended) && activeClimate!==c.climate && !String(activeClimate).startsWith("group:")) applyFilter("전체");
+      selectCity(c);
+    };
+    results.appendChild(d);
+  });
+  results.style.display="block";
+}
+
+search.addEventListener("input",()=>renderResults(searchCities(search.value)));
+search.addEventListener("focus",()=>renderResults(searchCities(search.value)));
+search.addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const first=searchCities(search.value)[0];
+    if(first){
+      results.style.display="none";
+      if(activeClimate!=="전체" && !(activeClimate==="추천"&&first.recommended) && activeClimate!==first.climate && !String(activeClimate).startsWith("group:")) applyFilter("전체");
+      selectCity(first);
+    }
+  }
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))results.style.display="none";});
+document.getElementById("closeBtn").onclick=()=>document.getElementById("detail").classList.remove("open");
+document.getElementById("groupCloseBtn").onclick=()=>document.getElementById("detail").classList.remove("open");
+
+
+// ===== 교사용 추천 도시 랜덤 배정 =====
+let lastAssignments = [];
+
+function recommendedCities(){ return CITIES.filter(c=>c.recommended); }
+
+function parseStudentNames(){
+  const raw=document.getElementById("studentNames").value;
+  const names=raw.split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);
+  return [...new Set(names)];
+}
+
+function shuffleArray(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function showAssignWarning(msg){
+  const w=document.getElementById("assignWarning");
+  if(!msg){w.style.display="none";w.textContent="";return;}
+  w.style.display="block"; w.textContent=msg;
+}
+
+function renderAssignments(rows){
+  const box=document.getElementById("assignResults");
+  if(!rows.length){
+    box.innerHTML='<div class="assign-empty">아직 배정 결과가 없습니다.</div>';
+    return;
+  }
+  box.innerHTML=`
+    <table class="assign-table">
+      <thead><tr><th>번호</th><th>학생</th><th>배정 도시</th><th>나라</th><th>기후</th></tr></thead>
+      <tbody>${rows.map((r,i)=>`
+        <tr><td>${i+1}</td><td><b>${r.name}</b></td>
+        <td class="assign-city"><span class="assign-star">★</span>${r.city.city}</td>
+        <td>${r.city.country}</td><td>${r.city.climate}</td></tr>`).join("")}</tbody>
+    </table>`;
+}
+
+function runAssignment(){
+  const names=parseStudentNames();
+  const recs=recommendedCities();
+  const countEl=document.getElementById("recommendedCount");
+  if(countEl) countEl.textContent=recs.length;
+
+  if(!names.length){
+    showAssignWarning("학생 이름을 한 명 이상 입력해 주세요.");
+    return;
+  }
+  if(names.length>30){
+    showAssignWarning("랜덤 배정은 최대 30명까지 가능합니다.");
+    return;
+  }
+
+  const byClimate={};
+  recs.forEach(c=>{
+    if(c.climate==="빙설(EF)") return;
+    if(!byClimate[c.climate]) byClimate[c.climate]=[];
+    byClimate[c.climate].push(c);
+  });
+
+  const climateOrder=[
+    "열대우림(Af)","사바나(Aw)","몬순(Am)","스텝(BSk/BSh)","사막(BW)",
+    "온난습윤(Cfa)","서안해양성(Cfb)","지중해성(Cs)","온대겨울건조(Cwa/Cwb)",
+    "냉대습윤(Df)","냉대겨울건조(Dw)","툰드라(ET)","고산기후(H)"
+  ].filter(cl=>byClimate[cl]);
+
+  if(names.length>=13 && climateOrder.length!==13){
+    showAssignWarning("추천 도시 설정을 확인해 주세요. EF를 제외한 13개 기후가 모두 필요합니다.");
+    return;
+  }
+
+  const targetCounts={};
+  climateOrder.forEach(cl=>targetCounts[cl]=0);
+
+  if(names.length<13){
+    // 13명 미만은 서로 다른 기후를 우선 배정
+    shuffleArray(climateOrder).slice(0,names.length).forEach(cl=>{
+      targetCounts[cl]=1;
+    });
+  }else{
+    // 1단계: 13개 기후를 무조건 1번씩
+    climateOrder.forEach(cl=>targetCounts[cl]=1);
+    let assigned=13;
+
+    // 2단계: Dw, ET를 제외한 11개 기후를 2명까지 최대한 고르게
+    const secondRound=shuffleArray(
+      climateOrder.filter(cl=>cl!=="냉대겨울건조(Dw)" && cl!=="툰드라(ET)")
+    );
+    for(const cl of secondRound){
+      if(assigned>=names.length) break;
+      if(byClimate[cl].length>=2){
+        targetCounts[cl]=2;
+        assigned++;
+      }
+    }
+
+    // 25명일 때는 지중해성을 3명으로: 13개 기후가 모두 포함되고
+    // Dw/ET는 각 1명, 나머지는 2명, Cs만 3명이 됩니다.
+    if(assigned<names.length && targetCounts["지중해성(Cs)"]<3){
+      targetCounts["지중해성(Cs)"]++;
+      assigned++;
+    }
+
+    // 26~30명은 관광책자 제작이 좋은 기후 중 후보가 3개 이상인 곳에
+    // 한 명씩 추가해 최대한 고르게 배분
+    const thirdRound=shuffleArray([
+      "몬순(Am)","사막(BW)","온난습윤(Cfa)","냉대습윤(Df)","고산기후(H)"
+    ].filter(cl=>byClimate[cl] && byClimate[cl].length>=3));
+
+    for(const cl of thirdRound){
+      if(assigned>=names.length) break;
+      if(targetCounts[cl]<3){
+        targetCounts[cl]++;
+        assigned++;
+      }
+    }
+
+    if(assigned<names.length){
+      showAssignWarning("현재 설정으로는 30명까지 균등 배정하기 어렵습니다. 추천 도시 후보를 확인해 주세요.");
+      return;
+    }
+  }
+
+  // 기후별 도시 선택
+  const selectedByClimate={};
+
+  // Df를 먼저 뽑아 삿포로 포함 여부를 확인
+  if(targetCounts["냉대습윤(Df)"]>0){
+    selectedByClimate["냉대습윤(Df)"]=
+      shuffleArray(byClimate["냉대습윤(Df)"]).slice(0,targetCounts["냉대습윤(Df)"]);
+  }
+
+  // 도쿄와 삿포로는 동시에 배정하지 않음
+  const sapporoChosen=(selectedByClimate["냉대습윤(Df)"]||[]).some(c=>c.city==="삿포로");
+
+  if(targetCounts["온난습윤(Cfa)"]>0){
+    let cfaPool=[...byClimate["온난습윤(Cfa)"]];
+    if(sapporoChosen){
+      cfaPool=cfaPool.filter(c=>c.city!=="도쿄");
+    }
+    if(cfaPool.length<targetCounts["온난습윤(Cfa)"]){
+      showAssignWarning("도쿄-삿포로 중복 방지 조건 때문에 배정 후보가 부족합니다.");
+      return;
+    }
+    selectedByClimate["온난습윤(Cfa)"]=
+      shuffleArray(cfaPool).slice(0,targetCounts["온난습윤(Cfa)"]);
+  }
+
+  // 나머지 기후 선택
+  climateOrder.forEach(cl=>{
+    if(cl==="냉대습윤(Df)" || cl==="온난습윤(Cfa)") return;
+    const n=targetCounts[cl]||0;
+    if(!n) return;
+    const pool=shuffleArray(byClimate[cl]);
+    if(pool.length<n){
+      showAssignWarning(`${cl}의 추천 도시 후보가 부족합니다.`);
+      return;
+    }
+    selectedByClimate[cl]=pool.slice(0,n);
+  });
+
+  let selectedCities=[];
+  climateOrder.forEach(cl=>{
+    selectedCities.push(...(selectedByClimate[cl]||[]));
+  });
+
+  if(selectedCities.length!==names.length){
+    showAssignWarning("배정 과정에서 오류가 발생했습니다. 다시 시도해 주세요.");
+    return;
+  }
+
+  selectedCities=shuffleArray(selectedCities);
+
+  lastAssignments=names.map((name,i)=>({
+    name,
+    city:selectedCities[i]
+  }));
+
+  renderAssignments(lastAssignments);
+
+  localStorage.setItem(
+    "climateGuideAssignments",
+    JSON.stringify(lastAssignments.map(x=>({
+      name:x.name,
+      city:x.city.city
+    })))
+  );
+
+  showAssignWarning(
+    names.length>=13
+      ? "배정 완료! EF를 제외한 13개 기후가 모두 포함되도록 최대한 고르게 배분했습니다."
+      : "배정 완료!"
+  );
+}
+
+function rerollAssignment(){
+  if(!parseStudentNames().length){showAssignWarning("먼저 학생 이름을 입력해 주세요.");return;}
+  runAssignment();
+}
+
+async function copyAssignments(){
+  if(!lastAssignments.length){showAssignWarning("복사할 배정 결과가 없습니다.");return;}
+  const text=["번호\t학생\t도시\t나라\t기후",
+    ...lastAssignments.map((r,i)=>`${i+1}\t${r.name}\t${r.city.city}\t${r.city.country}\t${r.city.climate}`)
+  ].join("\n");
+  try{await navigator.clipboard.writeText(text);showAssignWarning("배정 결과를 클립보드에 복사했습니다.");}
+  catch(e){showAssignWarning("자동 복사가 제한되었습니다. 결과 표를 드래그해 복사해 주세요.");}
+}
+
+function clearAssignments(){
+  document.getElementById("studentNames").value="";
+  lastAssignments=[]; localStorage.removeItem("climateGuideAssignments");
+  showAssignWarning(""); renderAssignments([]);
+}
+
+function openAssignModal(){
+  const modal=document.getElementById("assignModal");
+  modal.classList.add("open"); modal.setAttribute("aria-hidden","false");
+  document.getElementById("recommendedCount").textContent=recommendedCities().length;
+}
+function closeAssignModal(){
+  const modal=document.getElementById("assignModal");
+  modal.classList.remove("open"); modal.setAttribute("aria-hidden","true");
+}
+
+window.addEventListener("DOMContentLoaded",()=>{
+  document.getElementById("assignOpenBtn")?.addEventListener("click",openAssignModal);
+  document.getElementById("assignCloseBtn")?.addEventListener("click",closeAssignModal);
+  document.getElementById("assignRunBtn")?.addEventListener("click",runAssignment);
+  document.getElementById("assignRerollBtn")?.addEventListener("click",rerollAssignment);
+  document.getElementById("assignCopyBtn")?.addEventListener("click",copyAssignments);
+  document.getElementById("assignClearBtn")?.addEventListener("click",clearAssignments);
+  document.getElementById("assignModal")?.addEventListener("click",e=>{
+    if(e.target.id==="assignModal") closeAssignModal();
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape") closeAssignModal();
+  });
+
+  try{
+    const saved=JSON.parse(localStorage.getItem("climateGuideAssignments")||"[]");
+    if(saved.length){
+      const restored=saved.map(x=>({
+        name:x.name,
+        city:CITIES.find(c=>c.city===x.city)
+      })).filter(x=>x.city);
+      if(restored.length){
+        lastAssignments=restored;
+        const namesBox=document.getElementById("studentNames");
+        if(namesBox) namesBox.value=restored.map(x=>x.name).join("\n");
+        renderAssignments(restored);
+      }
+    }
+  }catch(e){}
+});
+
+window.addEventListener("resize",()=>setTimeout(()=>map.invalidateSize(),150));
+</script>
+
+<div id="assignModal" class="assign-modal" aria-hidden="true">
+  <div class="assign-card">
+    <div class="assign-head">
+      <div>
+        <h2>🎲 가이드북 추천 도시 랜덤 배정</h2>
+        <p>학생 이름을 한 줄에 한 명씩 입력하세요. <b>EF를 제외한 13개 기후가 빠지지 않도록</b> 최대한 고르게 배정합니다. Dw·ET는 최대 1명, 지중해성은 최대 3명이며, 도쿄와 삿포로는 동시에 배정되지 않습니다.</p>
+      </div>
+      <button id="assignCloseBtn" class="assign-close" aria-label="닫기">×</button>
+    </div>
+    <div class="assign-meta">
+      <span class="assign-pill">★ 추천 도시 후보 <b id="recommendedCount">35</b>곳</span>
+      <span class="assign-pill">최대 30명</span>
+      <span class="assign-pill">13개 기후 균등 배분</span>
+      <span class="assign-pill">Dw·ET 최대 1명</span>
+      <span class="assign-pill">Cs 최대 3명</span>
+      <span class="assign-pill">학생별 서로 다른 도시</span>
+    </div>
+    <textarea id="studentNames" class="assign-input" placeholder="예)
+김가람
+박나래
+이도윤
+최서윤"></textarea>
+    <div id="assignWarning" class="assign-warning"></div>
+    <div class="assign-actions">
+      <button id="assignRunBtn" class="assign-primary">🎲 랜덤 배정하기</button>
+      <button id="assignRerollBtn" class="assign-secondary">↻ 다시 섞기</button>
+      <button id="assignCopyBtn" class="assign-secondary">📋 결과 복사</button>
+      <button id="assignClearBtn" class="assign-secondary">초기화</button>
+    </div>
+    <div id="assignResults" class="assign-results">
+      <div class="assign-empty">이름을 입력하고 ‘랜덤 배정하기’를 눌러 주세요.</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
