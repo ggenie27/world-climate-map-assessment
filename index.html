@@ -64,6 +64,8 @@
     .stat-value{font-size:20px;font-weight:900;margin-top:4px}
     .chart-card{border:1px solid var(--line);border-radius:16px;padding:12px;margin-top:6px}
     .chart-wrap{height:270px}
+    .chart-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .chart-save-note{font-size:11px;color:#667085;line-height:1.5;margin-top:8px}
     .legend-note{font-size:11px;color:#667085;margin:8px 2px 0}
     .month-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:11px}
     .month-table th,.month-table td{border-bottom:1px solid #eef2f6;padding:7px 4px;text-align:center}
@@ -126,6 +128,13 @@
     .evidence-card{border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px}
     .evidence-card b{display:block;font-size:11px;color:#667085;margin-bottom:4px}
     .evidence-card span{font-size:13px;font-weight:900;color:#182230;line-height:1.45}
+    .rain-helper{margin:12px 0 4px;border-radius:15px;padding:13px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a5f;font-size:12px;line-height:1.6}
+    .rain-helper-title{font-size:13px;font-weight:900;color:#1d4ed8;margin-bottom:6px}
+    .rain-scale{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:8px 0}
+    .rain-scale span{display:block;text-align:center;padding:7px 4px;border-radius:10px;background:#fff;border:1px solid #dbeafe;font-size:10px;font-weight:800;color:#334155;line-height:1.35}
+    .rain-highlight{margin-top:8px;padding:9px 10px;border-radius:11px;background:#fff;border:1px solid #dbeafe}
+    .rain-note{font-size:10px;color:#64748b;margin-top:6px}
+    .rain-feel{display:inline-block;padding:3px 7px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;font-size:10px;font-weight:800;white-space:nowrap}
     .housing-grid{display:grid;grid-template-columns:1fr;gap:9px;margin:8px 0}
     .housing-card{border:1px solid var(--line);border-radius:12px;padding:11px;background:#f8fafc}
     .housing-card.traditional{background:#fff7ed;border-color:#fed7aa}
@@ -165,6 +174,8 @@
       .detail{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:76vh;border-radius:20px}
       .city-title{font-size:23px}
       .chart-wrap{height:240px}
+      .chart-actions{justify-content:stretch}
+      .chart-actions .tab-btn{flex:1}
     }
   
     .assign-open-btn{border:1px solid #f59e0b;background:#fffbeb;color:#92400e;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap}
@@ -323,13 +334,19 @@
           <div class="chart-card">
             <div style="display:flex;justify-content:flex-end;margin-bottom:4px"><span style="font-size:10px;font-weight:800;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:4px 7px;border-radius:999px">통일축 그래프</span></div>
             <div class="chart-wrap"><canvas id="climateChart"></canvas></div>
-            <div class="legend-note"><b>모든 도시 동일 기준</b> · 막대 = 월강수량(mm) · 선 = 월평균기온(℃)<br>강수량 0~800mm · 기온 -50~40℃ · 0℃ 기준선 표시</div>
+            <div class="legend-note"><b>모든 도시 동일 기준</b> · 막대 = 월강수량(mm) · 선 = 월평균기온(℃)<br>월강수량 0~800mm · 기온 -50~40℃ · 0℃ 기준선 표시</div>
+            <div class="chart-actions">
+              <button id="saveChartBtn" class="tab-btn" type="button">🖼️ 기후그래프 저장</button>
+              <button id="copyChartBtn" class="tab-btn" type="button">📋 그래프 복사</button>
+            </div>
+            <div class="chart-save-note">여행 책자에 넣고 싶다면 이 버튼으로 기후그래프 이미지를 저장하거나 복사해 Canva에 붙여 넣어 보세요.</div>
           </div>
 
+          <div id="rainfallHelper"></div>
           <div id="climateWorksheetGuide"></div>
 
           <table class="month-table">
-            <thead><tr><th>월</th><th>평균기온</th><th>강수량</th></tr></thead>
+            <thead><tr><th>월</th><th>평균기온</th><th>월강수량</th><th>체감</th></tr></thead>
             <tbody id="monthBody"></tbody>
           </table>
           <div id="warn" class="warn" style="display:none"></div>
@@ -498,6 +515,47 @@ function weatherSummary(c){
   };
 }
 
+function rainFeel(mm){
+  if(mm==null || Number.isNaN(mm)) return "—";
+  if(mm<20) return "거의 없음";
+  if(mm<80) return "적은 편";
+  if(mm<150) return "보통";
+  if(mm<300) return "많은 편";
+  return "매우 많음";
+}
+
+function renderRainfallHelper(c){
+  const box=document.getElementById("rainfallHelper");
+  if(!box) return;
+  const valid=c.precs.map((v,i)=>({v,i})).filter(x=>x.v!=null && !Number.isNaN(x.v));
+  if(!valid.length){ box.innerHTML=""; return; }
+  const wettest=valid.reduce((a,b)=>b.v>a.v?b:a);
+  const bottles=Math.round(wettest.v/2);
+  const seoulAnnual=1418;
+  const ratio=c.annualPrecip/seoulAnnual;
+  let ratioText="서울과 비슷한 수준";
+  if(ratio>=1.15) ratioText=`서울의 약 ${ratio.toFixed(1)}배`;
+  else if(ratio<=0.85) ratioText=`서울의 약 ${ratio.toFixed(1)}배`;
+  box.innerHTML=`
+    <div class="rain-helper">
+      <div class="rain-helper-title">🌧️ 강수량 체감 도우미</div>
+      <div><b>강수량 1mm</b>는 1㎡ 넓이에 물 <b>1L</b>가 내린 양이에요. 그래프의 숫자는 <b>한 달 동안 내린 비의 양</b>입니다.</div>
+      <div class="rain-scale">
+        <span>0~20mm<br>거의 없음</span>
+        <span>20~80mm<br>적은 편</span>
+        <span>80~150mm<br>보통</span>
+        <span>150~300mm<br>많은 편</span>
+        <span>300mm 이상<br>매우 많음</span>
+      </div>
+      <div class="rain-highlight">
+        <b>${c.city}에서 비가 가장 많은 달:</b> ${MONTHS[wettest.i]} · ${wettest.v.toFixed(1)}mm → <b>${rainFeel(wettest.v)}</b><br>
+        1㎡에 약 <b>${Math.round(wettest.v)}L</b>, 2L 생수로는 약 <b>${bottles}병</b>에 해당해요.<br>
+        <b>연강수량 ${c.annualPrecip.toFixed(0)}mm</b> → 서울의 연강수량 약 1,418mm(기상청 1991~2020 평년)와 비교하면 <b>${ratioText}</b>예요.
+      </div>
+      <div class="rain-note">※ ‘적다/많다’는 그래프를 쉽게 읽기 위한 수업용 월강수량 기준이에요. 지역과 계절에 따라 실제 체감은 달라질 수 있습니다.</div>
+    </div>`;
+}
+
 function renderClimateWorksheetGuide(c){
   const w=weatherSummary(c);
   const range=(Math.max(...c.temps)-Math.min(...c.temps)).toFixed(1);
@@ -516,6 +574,82 @@ function renderClimateWorksheetGuide(c){
       <div style="font-size:11px;margin-top:7px"><b style="display:inline">기온 연교차</b> 약 ${range}℃ · <b style="display:inline">기후 유형</b> ${c.climate}</div>
       <div style="margin-top:8px">① 기온 특징 ② 강수량 특징 ③ 핵심 사실 2가지를 활동지에 적고, 마지막에는 <b>“이 도시는 ______하고 ______한 ${c.climateShort} 기후입니다.”</b>처럼 한 문장으로 정리해 보세요.</div>
     </div>`;
+}
+
+
+function exportClimateChart(){
+  if(!selectedCity || !chart) return;
+  const sourceCanvas = document.getElementById("climateChart");
+  const out = document.createElement("canvas");
+  out.width = 1400;
+  out.height = 1050;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,out.width,out.height);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 40px system-ui, sans-serif";
+  ctx.fillText(`${selectedCity.city} (${selectedCity.country})`, 60, 70);
+  ctx.fillStyle = "#475569";
+  ctx.font = "600 22px system-ui, sans-serif";
+  ctx.fillText(`${selectedCity.climate} · 기후그래프`, 60, 105);
+
+  const chartX = 50, chartY = 135, chartW = 1300, chartH = 710;
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(chartX, chartY, chartW, chartH);
+  ctx.drawImage(sourceCanvas, chartX, chartY, chartW, chartH);
+
+  ctx.fillStyle = "#334155";
+  ctx.font = "600 18px system-ui, sans-serif";
+  ctx.fillText("모든 도시 동일 기준 · 막대 = 월강수량(mm) · 선 = 월평균기온(℃)", 60, 885);
+  ctx.fillText("월강수량 0~800mm · 기온 -50~40℃ · 0℃ 기준선 표시", 60, 915);
+  ctx.fillText(`연평균 기온 ${selectedCity.annualTemp.toFixed(1)}℃ · 연강수량 ${selectedCity.annualPrecip.toFixed(0)}mm`, 60, 955);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 16px system-ui, sans-serif";
+  ctx.fillText(`자료 기준: ${selectedCity.source}`, 60, 990);
+
+  const link = document.createElement("a");
+  link.href = out.toDataURL("image/png");
+  link.download = `${selectedCity.city}_기후그래프.png`;
+  link.click();
+}
+
+async function copyClimateChart(){
+  if(!selectedCity || !chart) return;
+  if(!(navigator.clipboard && window.ClipboardItem)){
+    alert("이 브라우저에서는 이미지 복사가 지원되지 않아요. 대신 ‘기후그래프 저장’ 버튼을 사용해 주세요.");
+    return;
+  }
+  const sourceCanvas = document.getElementById("climateChart");
+  const out = document.createElement("canvas");
+  out.width = 1400;
+  out.height = 1050;
+  const ctx = out.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,out.width,out.height);
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "bold 40px system-ui, sans-serif";
+  ctx.fillText(`${selectedCity.city} (${selectedCity.country})`, 60, 70);
+  ctx.fillStyle = "#475569";
+  ctx.font = "600 22px system-ui, sans-serif";
+  ctx.fillText(`${selectedCity.climate} · 기후그래프`, 60, 105);
+  const chartX = 50, chartY = 135, chartW = 1300, chartH = 710;
+  ctx.strokeStyle = "#e2e8f0";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(chartX, chartY, chartW, chartH);
+  ctx.drawImage(sourceCanvas, chartX, chartY, chartW, chartH);
+  ctx.fillStyle = "#334155";
+  ctx.font = "600 18px system-ui, sans-serif";
+  ctx.fillText("모든 도시 동일 기준 · 막대 = 월강수량(mm) · 선 = 월평균기온(℃)", 60, 885);
+  ctx.fillText("월강수량 0~800mm · 기온 -50~40℃ · 0℃ 기준선 표시", 60, 915);
+  ctx.fillText(`연평균 기온 ${selectedCity.annualTemp.toFixed(1)}℃ · 연강수량 ${selectedCity.annualPrecip.toFixed(0)}mm`, 60, 955);
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 16px system-ui, sans-serif";
+  ctx.fillText(`자료 기준: ${selectedCity.source}`, 60, 990);
+  const blob = await new Promise(resolve => out.toBlob(resolve, "image/png"));
+  await navigator.clipboard.write([new ClipboardItem({"image/png": blob})]);
+  alert("기후그래프 이미지가 복사되었어요! Canva나 문서에 붙여 넣어 보세요.");
 }
 
 function renderNature(kind){
@@ -686,22 +820,22 @@ function selectCity(c){
   MONTHS.forEach((m,i)=>{
     const tr=document.createElement("tr");
     const p=c.precs[i]==null?"—":c.precs[i].toFixed(1);
-    tr.innerHTML=`<td>${m}</td><td>${c.temps[i].toFixed(1)}℃</td><td>${p} mm</td>`;
+    tr.innerHTML=`<td>${m}</td><td>${c.temps[i].toFixed(1)}℃</td><td>${p} mm</td><td><span class="rain-feel">${c.precs[i]==null?"—":rainFeel(c.precs[i])}</span></td>`;
     body.appendChild(tr);
   });
 
   if(chart) chart.destroy();
   chart=new Chart(document.getElementById("climateChart"),{
     data:{labels:MONTHS,datasets:[
-      {type:"bar",label:"강수량(mm)",data:c.precs,yAxisID:"yPrecip",borderWidth:0,borderRadius:4,backgroundColor:"rgba(59,130,246,.48)"},
+      {type:"bar",label:"월강수량(mm)",data:c.precs,yAxisID:"yPrecip",borderWidth:0,borderRadius:4,backgroundColor:"rgba(59,130,246,.48)"},
       {type:"line",label:"평균기온(℃)",data:c.temps,yAxisID:"yTemp",tension:.28,pointRadius:3,pointHoverRadius:5,borderWidth:2.5,borderColor:"#ef4444",backgroundColor:"#ef4444"}
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},
       plugins:{legend:{position:"top",labels:{boxWidth:12,usePointStyle:true,font:{size:11}}},
-      tooltip:{callbacks:{label:(ctx)=>ctx.datasetIndex===0?` 강수량 ${ctx.raw ?? "—"} mm`:` 평균기온 ${ctx.raw}℃`}}},
+      tooltip:{callbacks:{label:(ctx)=>ctx.datasetIndex===0?` 월강수량 ${ctx.raw ?? "—"} mm · ${rainFeel(ctx.raw)}`:` 평균기온 ${ctx.raw}℃`}}},
       scales:{
-        yPrecip:{position:"left",min:0,max:800,beginAtZero:true,title:{display:true,text:"강수량(mm)",font:{size:10,weight:"bold"}},ticks:{stepSize:100,font:{size:10}},grid:{color:"rgba(148,163,184,.22)"}},
+        yPrecip:{position:"left",min:0,max:800,beginAtZero:true,title:{display:true,text:"월강수량(mm)",font:{size:10,weight:"bold"}},ticks:{stepSize:100,font:{size:10}},grid:{color:"rgba(148,163,184,.22)"}},
         yTemp:{position:"right",min:-50,max:40,title:{display:true,text:"기온(℃)",font:{size:10,weight:"bold"}},ticks:{stepSize:10,font:{size:10}},grid:{drawOnChartArea:false}},
         x:{ticks:{font:{size:9},maxRotation:0,minRotation:0}}
       }
@@ -709,6 +843,7 @@ function selectCity(c){
   });
 
   resetTabs();
+  renderRainfallHelper(c);
   renderClimateWorksheetGuide(c);
   renderNature("plants");
   renderLife("clothing");
@@ -1010,6 +1145,8 @@ function renderResults(items){
   results.style.display="block";
 }
 
+document.getElementById("saveChartBtn").addEventListener("click", exportClimateChart);
+document.getElementById("copyChartBtn").addEventListener("click", copyClimateChart);
 search.addEventListener("input",()=>renderResults(searchCities(search.value)));
 search.addEventListener("focus",()=>renderResults(searchCities(search.value)));
 search.addEventListener("keydown",e=>{
